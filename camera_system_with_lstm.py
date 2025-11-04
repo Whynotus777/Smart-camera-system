@@ -16,6 +16,7 @@ import json
 import os
 from pathlib import Path
 import torch
+import redis
 
 # Import pose action detector
 from pose_action_detector import PoseActionDetector
@@ -103,6 +104,18 @@ else:
 CONFIDENCE_THRESHOLD = 0.5
 PERSON_CLASS_ID = 0
 ALERT_SERVER_URL = "http://localhost:8000/alert"
+
+REDIS_HOST = "localhost"
+REDIS_PORT = 6379
+REDIS_DB = 0
+
+try:
+    redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
+    redis_client.ping()
+    print(f"[INFO] Connected to Redis at {REDIS_HOST}:{REDIS_PORT}")
+except Exception as redis_exc:
+    redis_client = None
+    print(f"[WARNING] Redis connection failed: {redis_exc}")
 
 # Action-based alert configuration
 ACTION_SEVERITY_MAP = {
@@ -396,6 +409,17 @@ def send_alert(cam_name, track_id, bbox, reason, severity, actions, global_id):
         pass
     return False
 
+
+def resolve_event_topic(reason: str) -> str:
+    reason_lower = (reason or "").lower()
+    if any(keyword in reason_lower for keyword in ("theft", "conceal")):
+        return "store:events:theft"
+    if "spill" in reason_lower:
+        return "store:events:spill"
+    if reason_lower:
+        return "store:events:general"
+    return ""
+
 def alert_worker():
     while True:
         try:
@@ -415,6 +439,15 @@ def alert_worker():
             
             if video_recorder:
                 video_recorder.start_recording(alert_data)
+
+            if redis_client:
+                try:
+                    topic = resolve_event_topic(alert_data.get('reason', ''))
+                    if topic:
+                        redis_client.publish(topic, json.dumps(alert_data))
+                        print(f"[INFO] Published event to robotics topic: {topic}")
+                except Exception as publish_exc:
+                    print(f"[WARNING] Failed to publish robotics event: {publish_exc}")
             
             alert_queue.task_done()
         except queue.Empty:
@@ -528,9 +561,23 @@ def camera_worker(cam_name, rtsp_url):
                     is_suspicious, reason, severity, detected_actions = analyze_pose_actions(
                         track_id, cam_name, bbox, frame, current_time, zones
                     )
+
+                    detected_action_names = [a.action_type for a in detected_actions]
+
+                    if redis_client:
+                        try:
+                            track_event = {
+                                "global_id": global_id,
+                                "camera": cam_name,
+                                "bbox": bbox,
+                                "timestamp": datetime.fromtimestamp(current_time).isoformat(),
+                                "detected_actions": detected_action_names,
+                            }
+                            redis_client.publish("store:person:track", json.dumps(track_event))
+                        except Exception as track_publish_exc:
+                            print(f"[WARNING] Failed to publish track update: {track_publish_exc}")
                     
                     if is_suspicious:
-                        action_names = [a.action_type for a in detected_actions]
                         alert_queue.put((-severity, {
                             'camera': cam_name,
                             'track_id': track_id,
@@ -538,7 +585,7 @@ def camera_worker(cam_name, rtsp_url):
                             'bbox': bbox,
                             'reason': reason,
                             'severity': severity,
-                            'actions': action_names
+                            'actions': detected_action_names
                         }))
                     
                     # Draw

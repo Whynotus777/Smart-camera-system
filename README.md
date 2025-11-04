@@ -78,6 +78,7 @@ Total latency: ~100ms per person
 
     pip install -r requirements.txt
 
+redis is included in `requirements.txt` to enable the Redis-backed messaging layer.
 Edit camera sources in `deepsort_poc.py` to use your RTSP URLs:
 
 ex: where admin is your camera username and IshanKharat should be your password (change the username and password accordingly from the app)
@@ -97,6 +98,28 @@ Now run the code
 ```bash
 python camera_system_with_lstm.py
 ```
+
+### Agent-Based Architecture
+- **Perception Agent (`camera_system_with_lstm.py`)**: Detects and tracks people, raises human alerts, and publishes structured event data to Redis.
+- **Dispatcher Agent (`dispatcher_agent.py`)**: Listens for events and logs intended robot actions to `task_log.jsonl`, creating future dispatch training data.
+- **SimTrigger Agent (`simulation_trigger.py`)**: Subscribes to events and triggers (stubbed) Isaac Sim scenarios to generate Vision-Language-Action datasets.
+
+### Multi-Agent Run Instructions
+```bash
+# Make sure Redis server is running
+redis-server
+
+# In terminal 1: Run the Perception Agent
+python camera_system_with_lstm.py
+
+# In terminal 2: Run the Dispatcher (Task Logger)
+python dispatcher_agent.py
+
+# In terminal 3: Run the Simulation Trigger
+python simulation_trigger.py
+```
+
+The system will now generate a `task_log.jsonl` file, logging all intended robot commands for future training.
 
 Notes:
 - IOU fallback is fine for PoC but not production.

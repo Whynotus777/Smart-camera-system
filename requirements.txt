@@ -1,5 +1,6 @@
 ultralytics
 opencv-python
 numpy
+redis
 # Optional: true ByteTrack support
 boxmot>=0.9.8
