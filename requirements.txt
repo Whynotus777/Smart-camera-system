@@ -1,0 +1,5 @@
+ultralytics
+opencv-python
+numpy
+# Optional: true ByteTrack support
+boxmot>=0.9.8
