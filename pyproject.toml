@@ -13,7 +13,7 @@ dependencies = [
 [project.optional-dependencies]
 # GPU/perception deps are installed per task; see AGENTS.md "Environment".
 perception = ["opencv-python-headless>=4.9", "av>=12"]
-dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10"]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10", "types-PyYAML>=6"]
 
 [build-system]
 requires = ["hatchling"]
@@ -40,3 +40,13 @@ extend-exclude = ["deepsort_poc.py", "camera_system_with_lstm.py", "dispatcher_a
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]
 ignore = ["S101"]
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+# torch is a per-task GPU dependency (AGENTS.md "Environment"); base.py only needs it for typing.
+module = ["torch", "torch.*"]
+ignore_missing_imports = true
