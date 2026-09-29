@@ -16,3 +16,13 @@ One command produces the metrics in `docs/EVAL.md` for any suite, so every other
 - [ ] Unit tests for each metric against hand-computed toy cases (including overlapping and duplicate alerts).
 - [ ] `public_pose` runs on PoseLift in < 5 min on the 5090 with a dummy model.
 - [ ] Reports include git sha, model ids, dataset versions, driver/GPU.
+
+## Addendum (review round 1)
+- **Derivative groups:** every clip gets a `group_id`; crops, overlapping windows, emulated variants, and augmentations inherit it and stay in the same split. A test fails if any group spans splits.
+- **Streaming path:** `lab_e2e` and `soak` run the real pipeline from video files (causal smoothing, track resets, dedupe, suppression), not saved scores.
+- **False alerts per hour** only from continuous footage suites.
+- **Uncertainty:** bootstrap 95% CIs over clips/actors and sample counts on every headline metric.
+- **Label honesty:** metrics needing labels a dataset lacks report `unavailable`. Positives = `visible: observed` for that camera.
+- **Thresholds:** fit on val, frozen for test; site calibration reported separately.
+- **Licensing:** RetailS is `pending`. Write the converter against its documented format but don't download it until docs/DATA.md says approved.
+- Implement the `sim_transfer` suite (train-set variants, one fixed real test set).

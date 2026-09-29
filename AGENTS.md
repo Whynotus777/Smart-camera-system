@@ -20,8 +20,10 @@ Read next: `docs/ARCHITECTURE.md` → `docs/ROADMAP.md` → your task in `tasks/
 
 1. **One task = one branch = one worktree.** Branch name `agent/<task-id>-<slug>`
    (e.g. `agent/T07-camera-emulator`). Use `git worktree add ../scs-T07 -b agent/T07-camera-emulator`.
-2. **Stay inside your task's owned paths** (listed in each brief). Need a change elsewhere?
+2. **Stay inside your task's owned paths** (listed in each brief). Every task also owns
+   `tests/<its area>/` and `docs/reports/<task-id>-*.md`. Need a change elsewhere?
    Open an issue or leave a `HANDOFF.md` note in your PR; don't edit it yourself.
+   Wave 1 branches from the tag `wave0-baseline` on `main`, never from another agent's branch.
 3. **`src/scs/contracts.py` is frozen for Wave 1+.** You may *add optional fields*.
    Anything else (rename, remove, change meaning) needs `docs/adr/NNNN-*.md` and a
    `CONTRACTS_VERSION` bump, in a PR that touches nothing else.
@@ -30,11 +32,13 @@ Read next: `docs/ARCHITECTURE.md` → `docs/ROADMAP.md` → your task in `tasks/
    (except `models/MANIFEST.yaml`). The only tracked video is the two PoC clips in
    `tests/fixtures/video/` (owner decision).
    Datasets are registered in `docs/DATA.md` with their license; weights in `models/MANIFEST.yaml`.
-5. **License gate.** Before adding any dependency, dataset, or pretrained weight, record
-   its license in `docs/DATA.md` (data/weights) or the PR description (code). AGPL,
-   non-commercial (NC), or "research only" items may be used for **R&D and eval only**
-   and must sit behind an interface so they can be swapped. Flag them in the PR title
-   with `[license-risk]`.
+5. **License gate.** Before adding any dependency, dataset, pretrained weight, or sim asset,
+   record its license in `docs/DATA.md` (data/weights/assets) or the PR description (code).
+   - AGPL / non-commercial / "research only": R&D and eval only, behind a swappable
+     interface, PR title tagged `[license-risk]`.
+   - **No license stated = not licensed** (default copyright). Status `pending`: don't
+     download into shared paths or train anything on it until approved in `docs/DATA.md`.
+   - Track lineage: any model trained on R&D-only data inherits R&D-only status.
 6. **Privacy by default.** No face recognition, no identity databases. Persist pose +
    tracks, not pixels, except alert evidence clips. Cross-camera appearance embeddings
    live in memory only and expire with the visit (≤ 30 min).
@@ -44,8 +48,12 @@ Read next: `docs/ARCHITECTURE.md` → `docs/ROADMAP.md` → your task in `tasks/
 8. **Tests.** `pytest -m "not gpu and not data and not slow"` must pass on CPU in CI.
    GPU/data tests are marked and must pass locally on the 5090 box; paste the output.
 9. **Small PRs.** Aim for < 600 changed lines. Split otherwise.
-10. **When blocked, write it down.** Add a `## Blockers` section to your PR and stop,
-    instead of guessing at a contract or inventing data.
+10. **When blocked, write it down.** Add a `## Blockers` section to your PR. Stop the
+    *affected* work if the blocker is an interface, licensing, security, or correctness
+    decision. Keep going on independent parts of your task that don't need a guess.
+11. **Causal by default.** Anything on the live path may only use past frames. If an
+    offline variant uses future frames (smoothing, gap filling), it must say so, and eval
+    must run the causal version.
 
 ## Environment (the 5090 workstation, Ubuntu)
 
@@ -56,20 +64,25 @@ Read next: `docs/ARCHITECTURE.md` → `docs/ROADMAP.md` → your task in `tasks/
   page for the installed Isaac Sim release; Blackwell (sm_120) + Isaac Sim is
   driver-sensitive. Don't upgrade the driver without checking.
 - PyTorch ≥ 2.7 built for CUDA 12.8+ (`cu128` wheels or newer). Older wheels don't
-  include sm_120 kernels and fail at runtime.
+  include sm_120 kernels and fail at runtime. Framework support ≠ whole-stack support:
+  every compiled extension/exporter you add (mmcv, TensorRT plugins, etc.) must be tested
+  on sm_120, and the working set pinned in a lockfile.
 - TensorRT 10.x for deployment engines. Build engines per GPU; never commit them.
 - Docker + NVIDIA Container Toolkit. Isaac Sim runs in its official container (T08).
 - Redis ≥ 7 (Streams) via `docker run -p 6379:6379 redis:7`.
 
 ### Sharing one GPU across many agents
 
-- All jobs > 2 min of GPU time go through the queue: `tsp` (task-spooler,
-  `apt install task-spooler`), e.g. `tsp -L T06 python -m scs.train ...`. Check with `tsp`.
-- Interactive tests: cap VRAM (`PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`,
-  small batch) and keep under ~6 GB.
-- Isaac Sim generation (T08) runs as scheduled batch jobs, not while others benchmark.
-- Throughput/latency benchmarks (T12) require an otherwise idle GPU; they take the
-  queue lock `tsp -N 1` style and note `nvidia-smi` state in the report.
+Every GPU command goes through `scripts/gpu` (T00 adds it; a ~20-line `flock` wrapper):
+- `scripts/gpu shared -- <cmd>`: short interactive tests (< 2 min, < 6 GB VRAM). Many can run at once.
+- `scripts/gpu exclusive -- <cmd>`: benchmarks, training, Isaac Sim rendering. Waits until
+  no shared or exclusive holder remains, then blocks others. **Benchmark numbers are only
+  valid if taken under `exclusive`**; reports include `nvidia-smi` state at start.
+- Long jobs are queued with `tsp` (task-spooler) *and* wrapped in `scripts/gpu exclusive`.
+
+The 5090 is the **development** GPU. The store appliance is chosen in T12 and must be
+benchmarked on real target hardware. TensorRT engines are built per target from a recorded
+recipe; engines never go in git, but their recipe, versions, and hash go in `models/MANIFEST.yaml`.
 
 ## Repo layout (target)
 

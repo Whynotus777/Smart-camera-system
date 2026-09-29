@@ -16,3 +16,8 @@ One service that runs the pipeline headless for a site config, survives a 24 h s
 - [ ] G1 perf/soak criteria in `docs/EVAL.md` met on the 5090.
 - [ ] Cold start to first alert-capable frame < 3 min with cached engines.
 - [ ] A new engineer can run the full stack from `README.md` on a clean Ubuntu + NVIDIA box.
+
+## Addendum (review round 1)
+- Benchmarks on the **actual store appliance** (ROADMAP H6), not only the 5090. Engines are built per target from a scripted recipe; record recipe, TensorRT/CUDA/driver versions, and engine hash in `models/MANIFEST.yaml`, and store engines in an artifact location outside git.
+- Pin and test the whole environment (lockfile + container digest), including compiled extensions, on both sm_120 and the target GPU.
+- Deliver M2 with T13: versioned bundle, degraded-state reporting, model/config rollout with rollback.
