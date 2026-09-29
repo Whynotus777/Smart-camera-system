@@ -13,6 +13,7 @@ runs/
 outputs/
 *.engine
 *.onnx
+*.pt
 *.pth
 *.mp4
 *.avi
