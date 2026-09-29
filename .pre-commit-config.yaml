@@ -26,5 +26,5 @@ repos:
         language: pygrep
         # Blocks a literal user:password in an RTSP URL; <user>:<password> placeholders are allowed.
         entry: 'rtsp://[^\s<>:/@]+:[^\s<>@]*@'
-        # test_contracts.py uses a fake credential URL to prove site configs reject URLs.
-        exclude: ^tests/test_contracts\.py$
+        # Fake credential URLs that demonstrate the guardrails (keep in sync with .gitleaks.toml).
+        exclude: ^(tests/test_contracts\.py|tasks/T01-hygiene-legacy\.md)$
