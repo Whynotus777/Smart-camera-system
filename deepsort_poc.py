@@ -2,13 +2,14 @@
 ## Ishan Kharat: Driver
 ## Abdul Manan: Navigator
 
+import os
 import cv2
 from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
 import os
 
 # ------------------- CONFIG -------------------
-RTSP_URL = "rtsp://admin:IshanKharat@10.229.121.51:554/h264Preview_01_sub"
+RTSP_URL = os.environ["SCS_CAM1_RTSP_URL"]  # see .env.example
 OUTPUT_VIDEO = "shoplifting_output.avi"
 OUTPUT_FPS = 20.0
 SAVE_FRAMES = True

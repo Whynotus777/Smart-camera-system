@@ -1,6 +1,7 @@
+import os
 import cv2
 
-rtsp_url = "rtsp://admin:IshanKharat@10.229.121.51:554/h264Preview_01_sub"
+rtsp_url = os.environ["SCS_CAM1_RTSP_URL"]  # see .env.example
 cap = cv2.VideoCapture(rtsp_url)
 
 if not cap.isOpened():

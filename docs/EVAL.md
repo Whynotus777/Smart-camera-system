@@ -1,0 +1,50 @@
+# Evaluation spec
+
+The eval harness (T09) is the product's source of truth. Anything that changes
+detection behavior must report these numbers. Run: `python -m eval.run --suite <name>`.
+Output: `runs/eval/<git-sha>/<suite>.json` + `summary.md`.
+
+## Suites
+
+| Suite | Data | Purpose |
+|---|---|---|
+| `public_pose` | PoseLift test, RetailS staged + real test | Behavior-model comparability with published baselines |
+| `sim_matrix` | `sim_store_v*` × all camera profiles × mount heights | Camera selection and robustness |
+| `emu_matrix` | `lab_mock_aisle` re-rendered through T07 per profile | Real-footage robustness to camera/codec/lighting |
+| `lab_e2e` | `lab_mock_aisle` held-out actors, full pipeline from video file | End-to-end system metric (the one that gates releases) |
+| `soak` | 24 h replay of normal-only footage at real time, 10 streams | Stability, false alerts per camera-hour, memory growth |
+| `perf` | Synthetic 10-stream load | Throughput, latency, GPU/NVDEC utilization |
+
+## Metrics
+
+**Primary (release gate):**
+- **Event recall @ false-alert budget:** fraction of labeled theft events that produce
+  an `Alert` whose window overlaps the event, while false alerts ≤ **1 per camera per
+  10 open-hours**. That's about 10/day for a 10-cam store before review. Report the
+  full recall-vs-FA curve too.
+- **Precision after verifier** (T11 on): fraction of alerts reaching review that are true.
+
+**Secondary:**
+- Frame-level AUC-ROC / AUC-PR on `public_pose` (compare to STG-NF 67.5 PoseLift, 63.2 RetailS-real).
+- Per-subtype recall (pocket, bag, waistband, jacket, grab_run).
+- Tracking: IDF1, ID switches per person-minute (the legacy demo shows ~2 per 10 s).
+- Journey accuracy: checkout-visit and store-exit event F1 (these feed the strongest rule).
+- Robustness: worst-profile recall on `emu_matrix` / `sim_matrix` ÷ best-profile recall.
+- Perf: p95 event→alert latency, sustained fps per stream, VRAM, NVDEC %.
+- Soak: crashes (must be 0), RSS growth < 5%/24 h, reconnect success after forced RTSP drop.
+
+## Gates
+
+| Gate | When | Must show |
+|---|---|---|
+| **G1 — public + sim** | End of Wave 2 | Behavior model ≥ STG-NF baseline on `public_pose`; `sim_matrix` report exists with ≥ 3 profiles × 2 heights; pipeline runs 10 streams from files on the 5090 for 1 h with 0 crashes. |
+| **G2 — lab** | After `lab_mock_aisle` recorded | `lab_e2e` recall ≥ 0.6 at the FA budget on held-out actors; soak 24 h clean; camera recommendation written from `emu_matrix` + `sim_matrix`. |
+| **G3 — store shadow** | In store, 2+ weeks | Alerts reviewed but NOT sent; measured FA/day and recall on known incidents; go/no-go for live alerts. |
+
+Numbers in G2 are starting targets. Adjust by ADR with evidence, not by vibe.
+
+## Rules
+
+- Splits are by **actor and clip**, never by frame. Held-out actors never appear in training.
+- No threshold tuning on the test split. Calibrate on val and freeze.
+- Every report records: git sha, model ids, dataset versions, camera profiles, GPU, driver.

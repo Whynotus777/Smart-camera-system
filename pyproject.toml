@@ -1,0 +1,42 @@
+[project]
+name = "scs"
+version = "0.1.0"
+description = "Smart Camera System — retail loss-prevention perception stack"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pyyaml>=6",
+    "numpy>=1.26",
+    "redis>=5",
+]
+
+[project.optional-dependencies]
+# GPU/perception deps are installed per task; see AGENTS.md "Environment".
+perception = ["opencv-python-headless>=4.9", "av>=12"]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/scs"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "gpu: needs a CUDA GPU (skipped in CI)",
+    "slow: > 30 s",
+    "data: needs datasets under data/ (skipped in CI)",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+extend-exclude = ["deepsort_poc.py", "camera_system_with_lstm.py", "dispatcher_agent.py",
+                  "simulation_trigger.py", "testcamera.py", "alerts", "stream"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101"]

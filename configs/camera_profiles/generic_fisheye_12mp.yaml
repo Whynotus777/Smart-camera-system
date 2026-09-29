@@ -1,0 +1,14 @@
+# Ceiling fisheye (360°). One unit can cover a small c-store floor, but people
+# near the edge are tiny and heavily distorted and most pose models are trained on
+# rectilinear views. Included so the emulator + sim can quantify the trade-off.
+id: generic_fisheye_12mp
+vendor: generic
+model: "12MP 360-degree fisheye"
+main_stream: {width: 2992, height: 2992, fps: 15, codec: h265, bitrate_kbps: 8192}
+sub_stream: {width: 1024, height: 1024, fps: 15, codec: h264, bitrate_kbps: 1024}
+hfov_deg: 180
+lens: fisheye
+distortion: [0.0, 0.0, 0.0, 0.0]
+ir_night_mode: true
+verified: false
+notes: "Requires dewarp or fisheye-aware models; evaluate before recommending."
