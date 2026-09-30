@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Share the one dev GPU between agents (AGENTS.md "Sharing one GPU").
+#   scripts/gpu shared    -- <cmd...>   short tests; many may run at once
+#   scripts/gpu exclusive -- <cmd...>   benchmarks/training/rendering; waits for everyone, then runs alone
+# Two flock(1) locks: exclusive holds GATE while it waits for RUN, so new shared jobs queue
+# behind a waiting exclusive job instead of starving it. Locks die with the process.
+set -euo pipefail
+usage() { echo "usage: scripts/gpu {shared|exclusive} -- <command> [args...]" >&2; exit 2; }
+[[ $# -ge 3 && $2 == "--" ]] || usage
+mode=$1; shift 2
+dir=${SCS_GPU_LOCK_DIR:-/tmp/scs-gpu-lock}
+mkdir -p "$dir"
+exec 8>"$dir/gate" 9>"$dir/run"
+case $mode in
+  shared)    flock -s 8; flock -s 9; flock -u 8 ;;
+  exclusive) flock -x 8; flock -x 9
+             if command -v nvidia-smi >/dev/null; then
+               echo "[gpu exclusive] $(date -Is) $(nvidia-smi --query-gpu=name,driver_version,memory.used,utilization.gpu --format=csv,noheader 2>/dev/null || echo 'nvidia-smi failed')" >&2
+             fi ;;
+  *) usage ;;
+esac
+exec "$@" 8>&-

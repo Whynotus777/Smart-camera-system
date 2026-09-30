@@ -10,5 +10,6 @@ hfov_deg: 95
 lens: rectilinear
 distortion: [-0.25, 0.07]
 ir_night_mode: true
-verified: false
+verification: approximation
+sources: []
 notes: "Reference profile; not a purchasable SKU."

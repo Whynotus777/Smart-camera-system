@@ -10,5 +10,6 @@ hfov_deg: 180
 lens: fisheye
 distortion: [0.0, 0.0, 0.0, 0.0]
 ir_night_mode: true
-verified: false
+verification: approximation
+sources: []
 notes: "Requires dewarp or fisheye-aware models; evaluate before recommending."
