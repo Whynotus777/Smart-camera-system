@@ -157,7 +157,7 @@ class CropExporter:
         while (item := self._q.get()) is not None:
             kind, path, payload = item
             path.parent.mkdir(parents=True, exist_ok=True)
-            if kind == "img":
+            if isinstance(payload, np.ndarray):
                 cv2.imwrite(str(path), payload, [cv2.IMWRITE_JPEG_QUALITY, 95])
             else:
                 with path.open("a") as fh:
