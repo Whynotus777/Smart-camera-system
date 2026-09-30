@@ -43,12 +43,57 @@ def verify(local: Path, rf: RemoteFile) -> tuple[bool, str, dict[str, str]]:
     if size != rf.nbytes:
         return False, f"size {size} != {rf.nbytes}", {}
     hashes = file_hashes(local)
+    if rf.source_checksum and rf.source_checksum.startswith("s3etag:"):
+        ok = s3_etag_matches(local, rf.source_checksum.split(":", 1)[1])
+        hashes = file_hashes(local)
+        if ok is False:
+            return False, "s3 etag mismatch", hashes
+        return True, "size+s3etag(multipart md5)" if ok else "size-only (etag not checkable)", hashes
     if rf.source_checksum:
         algo, _, want = rf.source_checksum.partition(":")
         if hashes.get(algo) != want:
             return False, f"{algo} mismatch", hashes
         return True, f"size+{algo}", hashes
     return True, "size-only (origin publishes no checksum)", hashes
+
+
+MIB = 1024 * 1024
+
+
+def s3_etag_matches(path: Path, etag: str) -> bool | None:
+    """Check a file against an S3 ETag, including multipart ETags ("<md5 of part md5s>-<N>").
+
+    Returns True/False, or None if the ETag can't be checked (e.g. SSE-KMS). A multipart
+    ETag doesn't record the part size, so every whole-MiB part size consistent with N parts
+    is tried, in one read pass (AWS tools use 8 MiB by default; others use 5-64 MiB).
+    """
+    e = etag.strip('"')
+    digest, _, parts = e.partition("-")
+    size = path.stat().st_size
+    if not parts:
+        return file_hashes(path, ("md5",))["md5"] == digest
+    n = int(parts)
+    cands = [ps * MIB for ps in range(5, 5121) if -(-size // (ps * MIB)) == n]
+    if not cands:
+        return None
+    import hashlib
+
+    state = {c: {"cur": hashlib.md5(usedforsecurity=False), "in": 0, "parts": []} for c in cands}
+    with open(path, "rb") as fh:
+        while chunk := fh.read(MIB):
+            for c, st in state.items():
+                st["cur"].update(chunk)
+                st["in"] += len(chunk)
+                if st["in"] == c:
+                    st["parts"].append(st["cur"].digest())
+                    st["cur"], st["in"] = hashlib.md5(usedforsecurity=False), 0
+    for st in state.values():
+        if st["in"]:
+            st["parts"].append(st["cur"].digest())
+        joined = hashlib.md5(b"".join(st["parts"]), usedforsecurity=False).hexdigest()
+        if len(st["parts"]) == n and joined == digest:
+            return True
+    return False
 
 
 VIDEO_EXT = (".avi", ".mp4", ".mkv", ".mov")
