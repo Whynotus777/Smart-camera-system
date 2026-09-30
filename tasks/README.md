@@ -18,6 +18,7 @@ Each brief is self-contained: an agent should be able to start from the brief +
 | [T10](T10-evidence-review.md) | Evidence clips + review queue | 2 | `src/scs/evidence/` | T00, T02 |
 | [T11](T11-vlm-verifier.md) | VLM verifier | 2 | `src/scs/verify/` | T10 (clip format) |
 | [T12](T12-runtime-perf.md) | Runtime, packaging, perf/soak, edge decision | 3 | `src/scs/runtime/`, `docker/`, `eval/suites/perf*`, `soak*` | all |
+| [T14](T14-data-factory.md) | Data factory: free datasets, MEVA fake cameras, generation, pre-labels | 1 | `data_ops/`, `docs/reports/T14-*.md` | T00 |
 | [T13](T13-integration-release.md) | Integration & release owner (M1–M3) | 1 → ongoing | `tests/integration/`, `src/scs/app/`, `docs/RELEASE.md` | T00 |
 
 **Data-dependent acceptance.** Criteria marked *(when data exists)* need footage that
@@ -27,5 +28,5 @@ substitute evidence.
 
 Every task also owns `tests/<area>/` and `docs/reports/<id>-*.md`.
 
-Suggested agent allocation on one 5090: Wave 1 = 7 agents incl. T13 (T08 on its own schedule),
+Suggested agent allocation on one 5090: Wave 1 = 8 agents incl. T13 + T14 (T08 on its own schedule),
 Wave 2 = 4 agents, Wave 3 = 1–2 agents plus reviewers.

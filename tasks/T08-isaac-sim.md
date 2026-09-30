@@ -21,3 +21,7 @@ Generate labeled multi-camera video + ground truth (boxes, 2D/3D skeletons, jour
 
 ## Out of scope
 Robot dispatch simulation (legacy `simulation_trigger.py` idea) — parked.
+
+## Addendum (free data)
+- Before building scenes, check what NVIDIA released for PhysicalAI-SmartSpaces (retail scenes, camera configs, pipeline). Reuse over rebuild.
+- Trial **Cosmos-Transfer** on v0 renders (sim → photoreal, labels kept via depth/segmentation controls). If it doesn't fit in 32 GB with offload, report that; no cloud GPUs without approval.

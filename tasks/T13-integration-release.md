@@ -38,3 +38,6 @@ evidence-retrieval time).
 
 ## Out of scope
 Detection quality. A dumb rule is correct for M1.
+
+## Addendum (no cameras)
+M1 runs on MEVA indoor clips served by T14's replay farm as RTSP, not just local files, so the durability test exercises real reconnects.

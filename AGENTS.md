@@ -54,6 +54,8 @@ Read next: `docs/ARCHITECTURE.md` → `docs/ROADMAP.md` → your task in `tasks/
 11. **Causal by default.** Anything on the live path may only use past frames. If an
     offline variant uses future frames (smoothing, gap filling), it must say so, and eval
     must run the causal version.
+12. **Zero-spend.** No paid datasets, paid APIs, cloud GPUs, or purchases without Abdul's
+    written OK in the PR. Free, commercially licensed sources first (see `docs/DATA.md`).
 
 ## Environment (the 5090 workstation, Ubuntu)
 

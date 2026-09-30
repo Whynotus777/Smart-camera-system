@@ -26,3 +26,6 @@ One command produces the metrics in `docs/EVAL.md` for any suite, so every other
 - **Thresholds:** fit on val, frozen for test; site calibration reported separately.
 - **Licensing:** RetailS is `pending`. Write the converter against its documented format but don't download it until docs/DATA.md says approved.
 - Implement the `sim_transfer` suite (train-set variants, one fixed real test set).
+
+## Addendum (free data)
+Converters for `meva` (activity annotations → canonical interaction labels; held-out split by **camera and site**) and `smartspaces` (retail scenes only). Implement suites `meva_interaction`, `meva_fa`, `smartspaces_track`. Every report headed "proxy, not retail" where applicable.

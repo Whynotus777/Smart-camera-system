@@ -24,7 +24,7 @@ Any implementation behind the Protocols.
 
 ## Addendum (review round 1). Do these before Wave 1 starts
 1. `FrameRef`: add `epoch: int` (increments on every (re)connect), `seq: int` (per epoch,
-   monotonic), `source_ts: float | None` (RTP/camera capture time when available),
+   monotonic), `source_ts: float | None` (RTP/camera capture time when available; skip if already added),
    `transform: str | None` (e.g. "resize640:letterbox"). Keep `frame_idx` and `ts` (decode time).
    Frame identity = `(camera_id, epoch, seq)`.
 2. `CameraProfile`: replace `verified: bool` with
@@ -32,4 +32,4 @@ Any implementation behind the Protocols.
    plus `sources: list[str]`. Update the three YAMLs (all `approximation` except the
    Reolink sub-stream values, which are measured; note that in `notes`).
 3. `scripts/gpu`: `flock`-based wrapper with `shared` and `exclusive` modes (see AGENTS.md).
-4. Bump `CONTRACTS_VERSION` to 0.2.0 with ADR 0002.
+4. Bump `CONTRACTS_VERSION` to 0.3.0 with ADR 0003 (0.2.0/ADR 0002 already cover main-stream coords + `ts_mono`).

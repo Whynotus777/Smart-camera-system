@@ -21,3 +21,6 @@ One service that runs the pipeline headless for a site config, survives a 24 h s
 - Benchmarks on the **actual store appliance** (ROADMAP H6), not only the 5090. Engines are built per target from a scripted recipe; record recipe, TensorRT/CUDA/driver versions, and engine hash in `models/MANIFEST.yaml`, and store engines in an artifact location outside git.
 - Pin and test the whole environment (lockfile + container digest), including compiled extensions, on both sm_120 and the target GPU.
 - Deliver M2 with T13: versioned bundle, degraded-state reporting, model/config rollout with rollback.
+
+## Addendum (no cameras)
+`soak` and `perf` run against T14's MEVA replay farm (10 RTSP streams) until real cameras exist.

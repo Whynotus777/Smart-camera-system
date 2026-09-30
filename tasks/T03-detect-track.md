@@ -23,3 +23,6 @@ Batched person detection across cameras and per-camera tracking with low ID swit
 
 ## Out of scope
 Hand/item detection (possible follow-up; note ideas in the report).
+
+## Addendum (free data)
+Fine-tune/evaluate on `smartspaces` retail scenes (overhead retail, synthetic, CC-BY) and `meva` indoor (real CCTV). Report both separately; the gap between them is itself a finding. Suite: `smartspaces_track`.

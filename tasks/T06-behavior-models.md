@@ -24,3 +24,8 @@ A `BehaviorModel` that outputs calibrated scores for **observable interactions**
 
 ## Out of scope
 Large foundation-model pretraining. Small task-specific models on top of pretrained backbones only.
+
+## Addendum (free data)
+- Start from pretrained backbones (TAO ActionRecognitionNet/PoseClassificationNet, VideoMAE/V-JEPA-family); record licenses.
+- **Self-supervised continued pretraining** of the visual backbone on `meva` indoor video (no labels), then fine-tune. Budget: ≤ 3 days of 5090 time under `scripts/gpu exclusive`.
+- Train interaction heads on MEVA `picks_up / puts_down / transfers / steals_object` + sim v0 + T14 generated hard negatives. Evaluate on `meva_interaction` (held-out cameras) and `meva_fa`.

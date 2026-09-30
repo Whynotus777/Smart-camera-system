@@ -4,6 +4,10 @@ Goal: before we're back in store, have a system that's **measured**: it runs on 
 streams, has behavior models trained on public + synthetic + staged data, and has a
 data-backed camera recommendation. Then the CTO hardens it for deployment.
 
+## Operating constraints (current)
+- **Zero spend.** Free, commercially licensed data and open models only.
+- **No cameras or store access for several weeks.** Everything runs on public data, sim, generated clips, and MEVA replayed as fake cameras. Real-footage items (H1, H1a, store archive) are optional/deferred; tasks must not block on them.
+
 ## Release milestones (owned by T13, run alongside the waves)
 
 - **M1 — walking skeleton (target: end of Wave 1).** A replayed video (or a real Reolink)
@@ -23,7 +27,7 @@ G-gates both have to pass.
 
 - Wave 0 (agent-kit + T00 + T01) is reviewed, merged to `main`, and tagged **`wave0-baseline`**.
   Every Wave 1 branch starts from that tag.
-- Merge order into `main`: T13 walking-skeleton scaffolding → T09 → T02 → T03 → T04 → T07 → T08.
+- Merge order into `main`: T13 walking-skeleton scaffolding → T14 downloads/replay → T09 → T02 → T03 → T04 → T07 → T08.
   Each merge must keep T13's integration test green.
 - T13 owns the cross-agent integration test suite (`tests/integration/`).
 
@@ -34,7 +38,7 @@ Wave 0 (serial, 1 agent, ~2 days)
   T00 contracts + skeleton + CI  ──┐   (contracts.py already drafted in this PR)
   T01 hygiene + legacy quarantine ─┤
                                    ▼
-Wave 1 (parallel, up to 7 agents)
+Wave 1 (parallel, up to 8 agents)
   T02 ingest ─────────┐
   T03 detect+track ───┤
   T04 pose ───────────┤
@@ -42,6 +46,7 @@ Wave 1 (parallel, up to 7 agents)
   T08 sim (Isaac) ────┤   (separate env; long-running)
   T09 eval harness + dataset converters
   T13 integration + release owner (walking skeleton M1)
+  T14 data factory (downloads, MEVA fake cameras, generation, pre-labels)
                       ▼
 Wave 2 (parallel, up to 4 agents)
   T05 journey engine   (needs T03/T04 fixtures only)

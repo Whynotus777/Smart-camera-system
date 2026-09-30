@@ -27,3 +27,6 @@ Recording and clips (T10). Detection.
 
 ## Gotchas
 Reolink RTSP can stall silently; detect frame staleness rather than relying on read errors. Some Reolinks default the main stream to H.265.
+
+## Addendum (zero-spend / no cameras)
+No real cameras for weeks. Test against T14's MEVA replay farm (MEVA indoor clips served as RTSP by mediamtx, looped, with injected drops/stalls). H.265 test files: transcode MEVA clips locally.

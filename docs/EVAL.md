@@ -15,6 +15,9 @@ Output: `runs/eval/<git-sha>/<suite>.json` + `summary.md`.
 | `soak` | 24 h replay of normal-only footage at real time, 10 streams | Stability, false alerts per camera-hour, memory growth |
 | `sim_transfer` | Train on {real/mock only, sim only, real+sim}; test on the same untouched real test set | Decides whether sim data earns more investment |
 | `perf` | Synthetic 10-stream load | Throughput, latency, GPU/NVDEC utilization |
+| `meva_interaction` | MEVA indoor, held-out cameras/sites: `picks_up`, `puts_down`, `transfers`, `steals_object` events | **Free real-footage proxy** for event recall at the FA budget, through the full streaming pipeline |
+| `meva_fa` | ≥ 100 camera-hours of continuous MEVA indoor video | False alerts per camera-hour on real continuous footage (proxy until store shadow) |
+| `smartspaces_track` | SmartSpaces retail scenes (held-out scenes) | Detection mAP, IDF1, ID switches on overhead retail views |
 
 ## Metrics
 
@@ -38,7 +41,7 @@ Output: `runs/eval/<git-sha>/<suite>.json` + `summary.md`.
 
 | Gate | When | Must show |
 |---|---|---|
-| **G1 — public + sim** | End of Wave 2 | Behavior model ≥ STG-NF baseline on `public_pose`; `sim_matrix` report exists with ≥ 3 profiles × 2 heights; pipeline runs 10 streams from files on the 5090 for 1 h with 0 crashes. |
+| **G1 — free data** | End of Wave 2 | `meva_interaction` recall + CI at the FA budget measured on `meva_fa`; `smartspaces_track` IDF1 reported; behavior model ≥ STG-NF on `public_pose`; `sim_transfer` result for sim v0; 10 MEVA replay streams for 24 h with 0 crashes. All labeled "proxy, not retail". |
 | **G2 — lab** | After `lab_mock_aisle` recorded | `lab_e2e` recall ≥ 0.6 at the FA budget on held-out actors; soak 24 h clean; camera recommendation written from `emu_matrix` + `sim_matrix`. |
 | **G3 — store shadow** | In store, 2+ weeks | Alerts reviewed but NOT sent. Reviewers also check a random sample of **non-alerted** footage to estimate misses. Measured FA/day, recall on known incidents, review minutes/day. Acceptable review burden agreed with the operator **before** enabling live notifications. |
 
