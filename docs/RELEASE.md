@@ -17,7 +17,8 @@ Owner: T13 (integration & release). Updated 2026-09-30. Evidence for M1 is in
   `scs demo --video demo_1.mp4` (today: `python -m scs.app demo --video demo_1.mp4` until the
   `scs` entry point lands, see Handoffs). File sources loop like a camera; `--rtsp-env VAR`
   runs the same flow from an RTSP camera or T14's MEVA farm.
-- [x] **kill -9 / restart test passes 20 runs in a row.** `tests/integration/m1_chaos.py --runs 20`:
+- [x] **kill -9 / restart test passes 20 runs in a row.** 20/20 on `b73a687` with 399 external kills + 327
+  crash-point kills, 0 integrity and 0 liveness failures. `tests/integration/m1_chaos.py --runs 20`:
   random SIGKILLs of every role and of the ingest's ffmpeg decoder, plus self-kills at every
   durable boundary (crash points). Every run is compared with an uninterrupted reference run.
 - [x] **Clip plays in a browser and covers ≥ 10 s before / ≥ 5 s after.** H.264 yuv420p MP4 with
