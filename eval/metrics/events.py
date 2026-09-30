@@ -234,12 +234,18 @@ def curve(r: MatchResult, dup_as_false: bool = True) -> list[dict[str, float]]:
 def threshold_at_budget(r: MatchResult, budget_per_hour: float, dup_as_false: bool = True) -> float:
     """Lowest threshold whose FA/h <= budget (= highest recall under budget; both are
     monotone in the threshold). +inf if even the top-scored alert breaks the budget.
-    Fit this on val footage and freeze it for test (docs/EVAL.md Rules)."""
+    Fit this on val footage and freeze it for test (docs/EVAL.md Rules).
+    If even the lowest-scored prediction keeps FA/h within budget (incl. no predictions at
+    all), every threshold does: returns -inf (keep everything), not that lowest score."""
     if r.unit_hours is None:
         raise ValueError("threshold_at_budget needs continuous footage (unit_hours)")
+    pts = curve(r, dup_as_false)
+    ok = [pt["fa_per_hour"] <= budget_per_hour + 1e-12 for pt in pts]
+    if all(ok):
+        return -math.inf
     best = math.inf
-    for pt in curve(r, dup_as_false):
-        if pt["fa_per_hour"] <= budget_per_hour + 1e-12:
+    for pt, good in zip(pts, ok, strict=True):
+        if good:
             best = pt["threshold"]
     return best
 

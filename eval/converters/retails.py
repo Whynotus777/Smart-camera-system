@@ -53,7 +53,7 @@ def subset_of(path: Path) -> str | None:
     return None
 
 
-def iter_json(obj: Any) -> Iterator[tuple[int, Any, None, np.ndarray]]:
+def iter_json(obj: Any) -> Iterator[tuple[int, Any, np.ndarray | None, np.ndarray]]:
     """Accepts `[(frame_id, person_id, kpts), ...]`, `[{"frame_id","person_id","keypoints"}, ...]`
     or the STG-NF `{person: {frame: {"keypoints"}}}` dict. Anything else raises."""
     if isinstance(obj, dict):

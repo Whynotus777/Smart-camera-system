@@ -85,3 +85,19 @@ def test_latency_percentiles_hand():
     assert out["max"].value == 10
     assert out["p95"].n == {"samples": 10} and out["p95"].low_n
     assert latency_summary(np.array([]), clock="x")["p95"].status == "unavailable"
+
+
+def test_fast_weighted_bootstrap_equals_naive_concatenation():
+    from eval.metrics.frame import _WeightedBlocks, bootstrap_counts
+    from eval.metrics.stats import bootstrap_indices
+
+    rng = np.random.default_rng(3)
+    clips = [(rng.integers(0, 2, n), np.round(rng.random(n), 1)) for n in rng.integers(5, 40, 12)]
+    y = np.concatenate([c[0] for c in clips]).astype(bool)
+    s = np.concatenate([c[1] for c in clips])
+    wb = _WeightedBlocks(y, s, np.repeat(np.arange(12), [len(c[0]) for c in clips]))
+    for row, cnt in zip(bootstrap_indices(12, 30, 7), bootstrap_counts(12, 30, 7), strict=True):
+        yy = np.concatenate([clips[i][0] for i in row])
+        sc = np.concatenate([clips[i][1] for i in row])
+        assert wb.auc(cnt) == pytest.approx(auc_roc(yy, sc), nan_ok=True)
+        assert wb.ap(cnt) == pytest.approx(average_precision(yy, sc), nan_ok=True)

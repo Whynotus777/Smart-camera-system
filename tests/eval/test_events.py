@@ -119,9 +119,16 @@ def test_curve_and_budget_threshold():
     assert [(p["threshold"], p["recall"], p["fa_per_hour"]) for p in pts] == pytest.approx(expect)
     assert threshold_at_budget(r, 0.0) == 0.8
     assert threshold_at_budget(r, 1.0) == 0.5
-    assert threshold_at_budget(r, 1.5) == 0.1
+    assert threshold_at_budget(r, 1.4) == 0.5
+    # every point within budget -> keep everything (-inf), not just down to the lowest score seen
+    assert threshold_at_budget(r, 1.5) == -math.inf
     # without duplicates in the budget, 0.6 already allows 0.0 FA/h
     assert threshold_at_budget(r, 0.0, dup_as_false=False) == 0.6
+
+
+def test_no_val_predictions_keeps_everything():
+    r = match([G("u", 0, 1)], [], unit_hours={"u": 1})
+    assert threshold_at_budget(r, 0.1) == -math.inf
 
 
 def test_budget_unreachable_returns_inf():
