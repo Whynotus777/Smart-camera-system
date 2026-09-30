@@ -19,6 +19,7 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("smartspaces", help="NVIDIA PhysicalAI-SmartSpaces retail scenes 071-080 (CC-BY-4.0)")
     s.add_argument("--jobs", type=int, default=4)
     s.add_argument("--dry-run", action="store_true")
+    s.add_argument("--areas", action="store_true", help="only (re)build index/camera_areas.json")
     c = sub.add_parser("coco_kp", help="COCO 2017 val keypoints + images")
     c.add_argument("--jobs", type=int, default=2)
     c.add_argument("--dry-run", action="store_true")
@@ -34,7 +35,13 @@ def main(argv: list[str] | None = None) -> int:
         return meva.fetch(a.max_gb, jobs=a.jobs, dry_run=a.dry_run)
     if a.dataset == "smartspaces":
         from data_ops.fetch import smartspaces
-        return smartspaces.fetch(jobs=a.jobs, dry_run=a.dry_run)
+        if a.areas:
+            smartspaces.camera_areas()
+            return 0
+        rc = smartspaces.fetch(jobs=a.jobs, dry_run=a.dry_run)
+        if rc == 0 and not a.dry_run:
+            smartspaces.camera_areas()
+        return rc
     if a.dataset == "coco_kp":
         from data_ops.fetch import coco_kp
         return coco_kp.fetch(jobs=a.jobs, dry_run=a.dry_run)
