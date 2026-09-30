@@ -56,3 +56,32 @@ def test_fetch_refuses_over_budget(monkeypatch, env):
     monkeypatch.setattr(common, "require", refuse)
     with pytest.raises(BudgetError):
         fetch_all([_rf("x.avi")], raw, man, mp, _fake_download, log=lambda *_: None)
+
+
+def test_probe_video_and_summary(tmp_path):
+    import shutil
+    import subprocess
+
+    assert common.probe_video(tmp_path / "x.json") is None  # not a video extension
+    bogus = tmp_path / "bogus.avi"
+    bogus.write_bytes(b"not a video")
+    assert common.probe_video(bogus) is None  # unreadable: no crash
+    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+        v = tmp_path / "v.mp4"
+        subprocess.run([shutil.which("ffmpeg"), "-v", "error", "-f", "lavfi", "-i",  # noqa: S603
+                        "testsrc2=size=1920x1072:rate=30:duration=1", "-c:v", "libx264", str(v)], check=True)
+        p = common.probe_video(v)
+        assert (p["codec"], p["width"], p["height"], p["fps"], p["frames"]) == ("h264", 1920, 1072, 30.0, 30)
+        m = Manifest.load_or_new(tmp_path / "M.json", **META)
+        m.add("v.mp4", bytes=1, video=p)
+        m.add("w.mp4", bytes=1, video={**p, "height": 1080})
+        m.add("x.mp4", bytes=1, video=p)
+        assert common.video_summary(m) == "1920x1072@30fps h264: 2 files; 1920x1080@30fps h264: 1 files"
+
+
+def test_dataset_lock_is_exclusive(tmp_path):
+    with common.dataset_lock(tmp_path), pytest.raises(RuntimeError, match="holds"):
+        with common.dataset_lock(tmp_path):
+            pass
+    with common.dataset_lock(tmp_path):  # released after the first block
+        pass
