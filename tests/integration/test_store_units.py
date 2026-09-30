@@ -60,5 +60,5 @@ def test_segment_prune_keeps_footage_pending_clips_need(tmp_path: Path) -> None:
         st.add_segments([("cam01", 0, i, now - 600 + i * 50, now - 550 + i * 50, str(f))])
     ev, al = _event_alert(now - 480)
     st.inject(ev, al, (now - 495, now - 470))  # pending clip: needs segment 2
-    assert SegmentEvidence(st, retain_s=120).prune() == 8
+    assert SegmentEvidence(st, retain_s=120).prune(now=now) == 8  # explicit clock: fsyncs can be slow
     assert sorted(int(p.stem) for p in tmp_path.glob("*.ts")) == [2, 9]

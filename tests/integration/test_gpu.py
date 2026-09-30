@@ -25,7 +25,7 @@ pytestmark = [
 def test_chaos_once_on_gpu(tmp_path: Path) -> None:
     video = synthetic_video(tmp_path / "synthetic.mp4")
     rep, stats = run_chaos(tmp_path / "run", video, seed=21, loops=3, speed=10, env=GPU_ENV)
-    assert rep.errors == [], (rep, stats)
+    assert rep.errors == [] and stats["liveness"] is None, (rep, stats)
     assert rep.events >= 2 and rep.reviews == rep.clips >= 2
 
 
@@ -36,5 +36,5 @@ def test_demo_clip_on_gpu(tmp_path: Path) -> None:
                            crashpoints="", kill_gap=(5.0, 8.0))
     # demo_1's first event fires 5 s after the camera "starts", so that clip is exempt from
     # the pre-roll check (no footage exists before the origin); every later one isn't.
-    assert rep.errors == [], (rep, stats)
+    assert rep.errors == [] and stats["liveness"] is None, (rep, stats)
     assert rep.clips >= 2, (rep, stats)

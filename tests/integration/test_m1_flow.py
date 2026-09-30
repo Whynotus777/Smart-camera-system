@@ -29,6 +29,9 @@ from scs.app import config as cfgmod
 from scs.app.roles import db_path
 from scs.app.store import Store
 
+# Generous: on the shared dev box the HDD is often saturated by other agents (docs/RELEASE.md R13).
+WAIT_S = 240
+
 pytestmark = pytest.mark.skipif(not have_ffmpeg(), reason="M1 integration needs ffmpeg + ffprobe on PATH")
 
 
@@ -94,7 +97,7 @@ def test_full_flow_file_source(tmp_path: Path, video: Path) -> None:
     stack = Stack(tmp_path)
     stack.start_all()
     try:
-        items = _wait(lambda: (c := _done_clips(base)) and len(c) >= 2 and c, 90, "two clips")
+        items = _wait(lambda: (c := _done_clips(base)) and len(c) >= 2 and c, WAIT_S, "two clips")
         a1, a2 = items[0]["alert"]["alert_id"], items[1]["alert"]["alert_id"]
 
         # the page lists them and the clip is served with Range support (browser seeking)
@@ -165,7 +168,7 @@ def test_injected_event_gets_clip(tmp_path: Path, video: Path) -> None:
             env=stack.env,
         )
         assert '"new": true' in out.stdout
-        items = _wait(lambda: _done_clips(f"http://127.0.0.1:{port}/"), 60, "injected clip")
+        items = _wait(lambda: _done_clips(f"http://127.0.0.1:{port}/"), WAIT_S, "injected clip")
         assert items[0]["alert"]["reason_codes"] == ["injected_test_event"]
     finally:
         stack.stop()
@@ -177,14 +180,32 @@ def test_demo_supervisor_kill9_leaves_no_orphans_and_resumes(tmp_path: Path, vid
 
     port = free_port()
     wd = tmp_path / "demo"
-    cmd = [sys.executable, "-m", "scs.app", "demo", "--video", str(video), "--workdir", str(wd),
-           "--speed", "8", "--port", str(port)]
+    cmd = [
+        sys.executable,
+        "-m",
+        "scs.app",
+        "demo",
+        "--video",
+        str(video),
+        "--workdir",
+        str(wd),
+        "--speed",
+        "8",
+        "--port",
+        str(port),
+    ]
     env = {**os.environ, "PYTHONPATH": str(REPO / "src")}
     demo = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True, env=env, cwd=REPO)  # noqa: S603
     assert demo.stdout is not None
-    _wait(lambda: "Review queue:" in (demo.stdout.readline() or ""), 90, "review URL")
-    roles = [int(p) for p in subprocess.run(["pgrep", "-f", f"scs.app run .* --workdir {wd}"],  # noqa: S603, S607
-                                            capture_output=True, text=True).stdout.split()]
+    _wait(lambda: "Review queue:" in (demo.stdout.readline() or ""), WAIT_S, "review URL")
+    roles = [
+        int(p)
+        for p in subprocess.run(
+            ["pgrep", "-f", f"scs.app run .* --workdir {wd}"],  # noqa: S603, S607
+            capture_output=True,
+            text=True,
+        ).stdout.split()
+    ]
     assert len(roles) == 3
     os.kill(demo.pid, signal.SIGKILL)
     demo.wait()
@@ -194,8 +215,14 @@ def test_demo_supervisor_kill9_leaves_no_orphans_and_resumes(tmp_path: Path, vid
     st.close()
 
     # same workdir: resumes the timeline, keeps the port, and adds no duplicates
-    out = subprocess.run([*cmd, "--exit-when-ready", "--timeout", "60"], capture_output=True, text=True,  # noqa: S603
-                         env=env, cwd=REPO, timeout=90)
+    out = subprocess.run(
+        [*cmd, "--exit-when-ready", "--timeout", "60"],
+        capture_output=True,
+        text=True,  # noqa: S603
+        env=env,
+        cwd=REPO,
+        timeout=90,
+    )
     assert out.returncode == 0 and f"Review queue: http://127.0.0.1:{port}/" in out.stdout, out.stderr[-2000:]
     st = Store(db_path(wd))
     after = st.event_ids()

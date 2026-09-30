@@ -48,13 +48,14 @@ class App:
         self.store = Store(db_path(workdir))
         self.lock = threading.Lock()  # one sqlite connection, serialized across request threads
 
-    def export(self, only: str | None = None) -> list[Path]:
+    def export(self, only: str | None = None, missing_only: bool = False) -> list[Path]:
         return export_labels(
             self.store,
             self.workdir / "labels",
             self.cfg.label_dataset_id,
             self.cfg.camera_profile,
             only,
+            missing_only,
         )
 
     def alerts_json(self) -> list[dict[str, Any]]:
@@ -217,7 +218,9 @@ def run_web(workdir: Path) -> None:
     with role_lock(workdir, "web"):
         app = App(workdir)
         with app.lock:
-            app.export()  # repair: a crash between a committed review and its export
+            # Repair a crash between a committed review and its export. Only missing labels:
+            # rewriting all of them made startup O(reviews) fsyncs (slow restarts under load).
+            app.export(missing_only=True)
         srv = ThreadingHTTPServer((app.cfg.host, app.cfg.port), make_handler(app))
         srv.daemon_threads = True
         log("web", f"review queue on http://{app.cfg.host}:{app.cfg.port}/")

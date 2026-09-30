@@ -23,7 +23,7 @@ def video(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 def test_chaos_once(tmp_path: Path, video: Path) -> None:
     rep, stats = run_chaos(tmp_path, video, seed=7, loops=3, speed=10)
-    assert rep.errors == [], (rep, stats)
+    assert rep.errors == [] and stats["liveness"] is None, (rep, stats)
     assert stats["kills"] >= 5 and rep.events >= 2 and rep.reviews == rep.clips >= 2
 
 
@@ -31,4 +31,4 @@ def test_chaos_once(tmp_path: Path, video: Path) -> None:
 def test_chaos_20_in_a_row(tmp_path: Path, video: Path) -> None:
     for i in range(20):
         rep, stats = run_chaos(tmp_path / f"run{i:02d}", video, seed=1000 + i)
-        assert rep.errors == [], (i, rep, stats)
+        assert rep.errors == [] and stats["liveness"] is None, (i, rep, stats)

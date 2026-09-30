@@ -80,16 +80,20 @@ def export_labels(
     dataset_id: str,
     camera_profile: str,
     only: str | None = None,
+    missing_only: bool = False,
 ) -> list[Path]:
     """Write one label file per reviewed alert (or just alert `only`). Returns the paths written.
 
-    Each file costs an fsync, so the review API exports only the alert it just recorded;
-    the full export runs at web startup (crash repair) and from `scs export-labels`.
+    Each file costs an fsync, so the review API exports only the alert it just recorded, and
+    web startup (crash repair) only writes labels that are missing: a review never changes
+    once stored, so an existing label file is final. `scs export-labels` rewrites them all.
     """
     labels = label_dir(out, dataset_id)
     written = []
     for alert, job, rev in store.alerts():
         if only is not None and alert.alert_id != only:
+            continue
+        if missing_only and (labels / f"{alert.alert_id}.json").exists():
             continue
         if rev is None or job is None or job.status != "done" or job.clip_start is None:
             continue  # only reviewed alerts with a clip become labels

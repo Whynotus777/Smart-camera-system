@@ -195,7 +195,7 @@ class Stack:
             self._killed_by_us[target] = True
         self.kills.append(target)
 
-    def stop_and_drain(self, timeout: float = 60.0) -> None:
+    def stop_and_drain(self, timeout: float = 180.0) -> None:
         """Stop the camera (ingest), let the clipper finish every due clip, then stop all."""
         self.kill("ingest")
         st = Store(db_path(self.workdir))

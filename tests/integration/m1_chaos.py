@@ -40,6 +40,9 @@ from scs.app.store import Store
 TARGETS = ("ingest", "clipper", "web", "ingest-ffmpeg")
 # Self-kill probabilities at the durable boundaries (scs.app.crash); first match wins.
 # Ingest commits ~16x/s at 8x speed but only ~3 per run carry events: those get p=0.5.
+# Drain budget after the chaos stops. On this shared HDD box (load avg ~30 while other agents
+# ran) 60 s was too short for a web role that kept crashing at its crash points.
+DRAIN_S = 180
 CRASHPOINTS = "ingest.*.event=0.5,ingest.*=0.02,clipper.*=0.25,web.*=0.25"
 
 
@@ -90,6 +93,7 @@ def run_chaos(
     reviewer = Reviewer(f"http://127.0.0.1:{port}/", seed)
     reviewer.start()
     t0 = time.monotonic()
+    liveness: str | None = None  # "didn't finish in time": reported separately from integrity
     try:
         # chaos phase
         while _position(workdir, cfg.camera_id) < target_pos:
@@ -107,23 +111,36 @@ def run_chaos(
         stack.start("clipper")
         if stack.procs["web"].poll() is not None:
             stack.start("web")
-        deadline = time.monotonic() + 60
+        deadline = time.monotonic() + DRAIN_S
         while not _drained(workdir, reviewer):
             if time.monotonic() > deadline:
-                raise TimeoutError("stack did not drain within 60 s")
+                raise TimeoutError(f"stack did not drain within {DRAIN_S} s")
             for r in ("clipper", "web"):
                 if stack.procs[r].poll() is not None:
                     stack.start(r)
             time.sleep(0.2)
         time.sleep(0.5)  # let a straggling clipper finish its temp-file cleanup
+    except TimeoutError as e:
+        liveness = str(e)
     finally:
         reviewer.stop_flag.set()
         reviewer.join(5)
         stack.stop()
     final = _position(workdir, cfg.camera_id)
     ref = reference_events(video, cfg, final + 1, workdir)
-    rep = check_invariants(workdir, reviewer.acked, ref)
+    if liveness is None:
+        rep = check_invariants(workdir, reviewer.acked, ref)
+    else:
+        # Cut short: a review may be stored with its response still in flight, so only require
+        # acknowledged ⊆ stored (same decision) on top of every other invariant.
+        rep = check_invariants(workdir, None, ref, require_all_reviewed=False)
+        st = Store(db_path(workdir))
+        stored = {r.alert_id: r.decision for r in st.reviews()}
+        st.close()
+        if any(stored.get(k) != v for k, v in reviewer.acked.items()):
+            rep.errors.append(f"acknowledged reviews missing or changed: {reviewer.acked} vs {stored}")
     stats = {
+        "liveness": liveness,
         "seed": seed,
         "kills": len(stack.kills),
         "self_crashes": stack.self_crashes,
@@ -133,6 +150,15 @@ def run_chaos(
         "frames": final + 1,
     }
     return rep, stats
+
+
+def _git_sha() -> str:
+    import subprocess
+
+    r = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, cwd=Path(__file__).parent
+    )
+    return r.stdout.strip() or "unknown (not a git checkout)"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -155,10 +181,10 @@ def main(argv: list[str] | None = None) -> int:
         try:
             rep, stats = run_chaos(wd, video, a.seed + i, a.loops, a.speed)
         except Exception as e:  # noqa: BLE001 (a hung/crashed run is a failed run, with its logs kept)
-            rep, stats = Report(errors=[repr(e)]), {"seed": a.seed + i}
-        ok = not rep.errors
+            rep, stats = Report(errors=[f"harness: {e!r}"]), {"seed": a.seed + i}
+        ok = not rep.errors and not stats.get("liveness")
         failed += not ok
-        row = {"run": i, "ok": ok, **stats, **rep.__dict__}
+        row = {"run": i, "ok": ok, "integrity_ok": not rep.errors, **stats, **rep.__dict__}
         results.append(row)
         print(json.dumps(row), flush=True)
         if not ok:
@@ -166,10 +192,14 @@ def main(argv: list[str] | None = None) -> int:
             break
         shutil.rmtree(wd)
     summary = {
+        "commit": _git_sha(),
         "runs": len(results),
         "passed": sum(r["ok"] for r in results),
         "consecutive_pass": failed == 0,
-        "kills": sum(r["kills"] for r in results),
+        "kills": sum(r.get("kills", 0) for r in results),
+        "self_crashes": sum(r.get("self_crashes", 0) for r in results),
+        "integrity_failures": sum(not r["integrity_ok"] for r in results),
+        "liveness_failures": sum(bool(r.get("liveness")) for r in results),
         "events": sum(r["events"] for r in results),
         "clips": sum(r["clips"] for r in results),
         "reviews": sum(r["reviews"] for r in results),
