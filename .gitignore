@@ -1,0 +1,23 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Data, weights and generated media never go in git (see docs/DATA.md)
+data/
+models/
+runs/
+outputs/
+*.engine
+*.onnx
+*.pth
+*.mp4
+*.avi
+*.mkv
+!demo_1.mp4
+!demo2.mp4
+configs/sites/
+task_log.jsonl

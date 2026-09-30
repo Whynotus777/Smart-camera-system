@@ -81,9 +81,9 @@ Total latency: ~100ms per person
 redis is included in `requirements.txt` to enable the Redis-backed messaging layer.
 Edit camera sources in `deepsort_poc.py` to use your RTSP URLs:
 
-ex: where admin is your camera username and IshanKharat should be your password (change the username and password accordingly from the app)
-```python
-RTSP_URL = "rtsp://admin:IshanKharat@10.229.121.51:554/bcs/channel0_sub.bcs"
+Camera URLs (including credentials) come from environment variables. Copy `.env.example` to `.env` and fill in your own values; never commit them.
+```bash
+export SCS_CAM1_RTSP_URL="rtsp://<user>:<password>@<camera-ip>:554/h264Preview_01_sub"
 ```
 
 Make sure your device is reading the camera. To test it run:

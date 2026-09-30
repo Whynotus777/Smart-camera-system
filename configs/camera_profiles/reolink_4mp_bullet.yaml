@@ -1,0 +1,15 @@
+# Reolink 4MP-class bullet/dome, as used in the Sept-2025 lab PoC.
+# Sub-stream values are MEASURED from demo_1.mp4 / demo2.mp4 (640x360 @ 20 fps).
+# Main-stream + optics are TYPICAL for this class — verify against the exact
+# model's datasheet and flip `verified: true` (T07 owns this).
+id: reolink_4mp_bullet
+vendor: Reolink
+model: "4MP bullet/dome (exact model TBD)"
+main_stream: {width: 2560, height: 1440, fps: 15, codec: h264, bitrate_kbps: 6144}
+sub_stream: {width: 640, height: 360, fps: 20, codec: h264, bitrate_kbps: 512}
+hfov_deg: 87
+lens: rectilinear
+distortion: [-0.30, 0.10]
+ir_night_mode: true
+verified: false
+notes: "RTSP paths: /h264Preview_01_main, /h264Preview_01_sub. Some models default main stream to H.265."

@@ -1,0 +1,24 @@
+# Example site config. Copy to configs/sites/<site_id>.yaml (gitignored).
+# RTSP URLs are NEVER written here — only the env var names that hold them.
+site_id: lab-mock-aisle
+timezone: America/New_York
+cameras:
+  - camera_id: cam1
+    profile_id: reolink_4mp_bullet
+    rtsp_main_env: SCS_CAM1_RTSP_MAIN
+    rtsp_sub_env: SCS_CAM1_RTSP_URL
+    mount_height_m: 2.7
+    tilt_deg: 35
+    zones:
+      - id: shelf_a
+        type: shelf
+        polygon: [[0.05, 0.10], [0.45, 0.10], [0.45, 0.70], [0.05, 0.70]]
+      - id: hv_candy
+        type: high_value
+        polygon: [[0.30, 0.15], [0.45, 0.15], [0.45, 0.45], [0.30, 0.45]]
+      - id: counter
+        type: checkout
+        polygon: [[0.60, 0.40], [0.95, 0.40], [0.95, 0.95], [0.60, 0.95]]
+      - id: door
+        type: entry_exit
+        polygon: [[0.00, 0.80], [0.20, 0.80], [0.20, 1.00], [0.00, 1.00]]

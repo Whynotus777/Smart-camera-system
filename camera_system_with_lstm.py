@@ -58,8 +58,8 @@ else:
 
 # Cameras
 CAMERAS = {
-    "Cam1": "rtsp://admin:IshanKharat@10.229.121.51:554/h264Preview_01_sub",
-    #"Cam2": "rtsp://admin:IshanKharat@10.229.121.16:554/h264Preview_01_sub",
+    "Cam1": os.environ.get("SCS_CAM1_RTSP_URL", ""),  # see .env.example
+    # "Cam2": os.environ.get("SCS_CAM2_RTSP_URL", ""),
 }
 
 # Limit cameras in Jetson mode

@@ -1,0 +1,14 @@
+# Generic enterprise 1080p ceiling dome. Matches the capture setup of the
+# PoseLift / RetailS public datasets (1080p-class, 15 fps, ceiling-mounted),
+# so it is the reference profile for public-data pretraining.
+id: generic_1080p_dome_15fps
+vendor: generic
+model: "1080p varifocal dome"
+main_stream: {width: 1920, height: 1080, fps: 15, codec: h264, bitrate_kbps: 4096}
+sub_stream: {width: 704, height: 480, fps: 15, codec: h264, bitrate_kbps: 512}
+hfov_deg: 95
+lens: rectilinear
+distortion: [-0.25, 0.07]
+ir_night_mode: true
+verified: false
+notes: "Reference profile; not a purchasable SKU."
