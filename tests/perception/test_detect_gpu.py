@@ -16,6 +16,7 @@ from scs.perception.base import Detector
 
 ROOT = Path(__file__).resolve().parents[2]
 ENGINES = {
+    "yolo11": ROOT / "models/yolo11s/yolo11s_fp16_b16.engine",
     "dfine": ROOT / "models/dfine-s/dfine_bf16_b16.engine",
 }
 FIXTURE = ROOT / "tests/fixtures/video/demo_1.mp4"

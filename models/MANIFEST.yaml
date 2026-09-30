@@ -25,3 +25,21 @@ dfine-s:
       onnx_sha256: 0a4e6ffb3c95c5398ae16399c82adf3cdabd52206ce8f1c410ac33262fc28637
       engine_sha256: 2e87f2c05344801b2bc1515cfc76e1f8377d8bda80aae798a98a3553e0f3ee34
       path: models/dfine-s/dfine_bf16_b16.engine
+
+yolo11s:
+  task: T03 person detector (comparison only)
+  license: AGPL-3.0 (ultralytics); enterprise license needed before any customer build
+  use: R&D
+  source:
+    weights: ultralytics yolo11s.pt (downloaded by ultralytics 8.4.166 on first export)
+    training_data: COCO 2017
+  recipe: scripts/gpu exclusive -- python -m scs.perception.detect_export yolo11
+  notes: FP16, dynamic batch 1-16 at 640x640 (letterbox), NMS in torchvision after the engine.
+  engines:
+    - gpu: NVIDIA GeForce RTX 5090 (sm_120), driver 580.173.02
+      tensorrt: 10.16.1.11
+      torch: 2.11.0+cu128
+      precision: fp16
+      onnx_sha256: d106d4da03f4c0b02f61ac42e1d8f9bc34decadf1731e80f0fe4c2e402312768
+      engine_sha256: cf0a09bbd91345de423e8c9c4d36081377449866eb940b2849a36fce2cc467d1
+      path: models/yolo11s/yolo11s_fp16_b16.engine
