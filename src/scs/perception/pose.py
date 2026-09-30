@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 import numpy as np
 
@@ -220,18 +220,20 @@ class TopDownPoseEstimator:
             if not keep:
                 continue
             geoms = [crop_geometry(t.bbox, self.backend.input_wh, self.padding) for t in keep]
-            crop = crop_batch_np if isinstance(image, np.ndarray) else crop_batch
-            crops.append(crop(image, geoms))
+            crops.append(
+                crop_batch_np(image, geoms) if isinstance(image, np.ndarray) else crop_batch(image, geoms)
+            )
             owners += [(n, t, g) for t, g in zip(keep, geoms, strict=True)]
         out: list[list[Pose]] = [[] for _ in items]
         if not owners:
             return out
+        batch: Any
         if isinstance(crops[0], np.ndarray):
             batch = np.concatenate(crops)
         else:
             import torch
 
-            batch = torch.cat(crops)
+            batch = torch.cat(crops)  # type: ignore[arg-type]
         mb = self.backend.max_batch
         kps = np.concatenate([self.backend.infer(batch[i : i + mb]) for i in range(0, len(batch), mb)])
         for (n, t, g), k in zip(owners, kps, strict=True):

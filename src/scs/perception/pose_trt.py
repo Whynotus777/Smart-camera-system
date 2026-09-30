@@ -39,7 +39,7 @@ def build_engine(
     workspace_gb: float = 4.0,
 ) -> dict[str, Any]:
     """ONNX -> serialized TRT engine with a dynamic batch profile [1, max_batch]. Returns the recipe."""
-    import tensorrt as trt
+    import tensorrt as trt  # type: ignore[import-untyped]
 
     onnx_path, engine_path = Path(onnx_path), Path(engine_path)
     logger = trt.Logger(trt.Logger.WARNING)
@@ -120,3 +120,21 @@ class TRTEngine:
         if not self.ctx.execute_async_v3(torch.cuda.current_stream().cuda_stream):
             raise RuntimeError("TensorRT execution failed")
         return outs
+
+
+def main() -> None:
+    import argparse
+
+    ap = argparse.ArgumentParser(description="Build a pose TensorRT engine from ONNX (per GPU; never commit)")
+    ap.add_argument("onnx")
+    ap.add_argument("engine")
+    ap.add_argument("--input-chw", type=int, nargs=3, default=[3, 256, 192])
+    ap.add_argument("--max-batch", type=int, default=32)
+    ap.add_argument("--fp32", action="store_true")
+    a = ap.parse_args()
+    recipe = build_engine(a.onnx, a.engine, tuple(a.input_chw), a.max_batch, fp16=not a.fp32)  # type: ignore[arg-type]
+    print(json.dumps(recipe, indent=2))
+
+
+if __name__ == "__main__":
+    main()

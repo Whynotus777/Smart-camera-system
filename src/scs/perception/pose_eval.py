@@ -131,6 +131,8 @@ def run_coco(
     t0 = time.time()
     for n, (iid, im) in enumerate(imgs.items()):
         bgr = cv2.imread(str(img_dir / im["file_name"]), cv2.IMREAD_COLOR)
+        if bgr is None:
+            raise FileNotFoundError(img_dir / im["file_name"])
         H, W = bgr.shape[:2]
         gts = [np.array(a["keypoints"], dtype=float).reshape(17, 3) for a in anns[iid]]
         for f in factors:

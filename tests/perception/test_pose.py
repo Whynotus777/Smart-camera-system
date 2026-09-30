@@ -101,7 +101,7 @@ def test_torch_crop_matches_numpy():
     from scs.perception.pose import crop_batch
 
     b = crop_batch(torch.from_numpy(img), gs).numpy()
-    np.testing.assert_allclose(a, b, atol=1e-2)
+    np.testing.assert_allclose(a, b, atol=0.05)  # float32 grid rounding
 
 
 # ---------------------------------------------------------------- estimator + identity
