@@ -91,20 +91,30 @@ def crop_batch(image: torch.Tensor, geoms: Sequence[CropGeometry]) -> torch.Tens
     ih, iw = int(image.shape[0]), int(image.shape[1])
     w, h = geoms[0].input_wh
     dev = image.device
+    # Only the region the crops touch is converted to float (+2 px so bilinear taps at the
+    # window edge still see real neighbours); everything outside it is outside every window.
+    x0 = max(int(min(gm.center[0] - gm.scale[0] / 2 for gm in geoms)) - 2, 0)
+    y0 = max(int(min(gm.center[1] - gm.scale[1] / 2 for gm in geoms)) - 2, 0)
+    x1 = min(int(max(gm.center[0] + gm.scale[0] / 2 for gm in geoms)) + 3, iw)
+    y1 = min(int(max(gm.center[1] + gm.scale[1] / 2 for gm in geoms)) + 3, ih)
+    if x1 <= x0 or y1 <= y0:
+        return torch.zeros((len(geoms), 3, h, w), dtype=torch.float32, device=dev)
+    roi = image[y0:y1, x0:x1]
+    rh, rw = y1 - y0, x1 - x0
     g = torch.tensor([[*gm.center, *gm.scale] for gm in geoms], dtype=torch.float32, device=dev)
     u = torch.arange(w, dtype=torch.float32, device=dev)
     v = torch.arange(h, dtype=torch.float32, device=dev)
-    xs = (u[None, :] - w / 2) * (g[:, 2:3] / w) + g[:, 0:1]  # (N, W) frame px
-    ys = (v[None, :] - h / 2) * (g[:, 3:4] / h) + g[:, 1:2]  # (N, H)
-    gx = (2 * xs + 1) / iw - 1  # align_corners=False normalization
-    gy = (2 * ys + 1) / ih - 1
-    grid = torch.stack(
-        (gx[:, None, :].expand(-1, h, -1), gy[:, :, None].expand(-1, -1, w)), dim=-1
-    )  # (N, H, W, 2)
-    src = image.permute(2, 0, 1)[None].float()  # (1, 3, H, W); expanded, not copied
-    return F.grid_sample(
-        src.expand(len(geoms), -1, -1, -1), grid, mode="bilinear", padding_mode="zeros", align_corners=False
-    )
+    xs = (u[None, :] - w / 2) * (g[:, 2:3] / w) + g[:, 0:1] - x0  # (N, W) roi px
+    ys = (v[None, :] - h / 2) * (g[:, 3:4] / h) + g[:, 1:2] - y0  # (N, H)
+    gx = (2 * xs + 1) / rw - 1  # align_corners=False normalization
+    gy = (2 * ys + 1) / rh - 1
+    # All crops as one tall (N*H, W) grid over a single source: no per-crop copy of the frame.
+    grid = torch.stack((gx[:, None, :].expand(-1, h, -1), gy[:, :, None].expand(-1, -1, w)), dim=-1)
+    src = roi.permute(2, 0, 1)[None].float()  # (1, 3, rh, rw)
+    out = F.grid_sample(
+        src, grid.reshape(1, -1, w, 2), mode="bilinear", padding_mode="zeros", align_corners=False
+    )  # (1, 3, N*H, W)
+    return out.view(3, len(geoms), h, w).transpose(0, 1).contiguous()
 
 
 def crop_batch_np(image: np.ndarray, geoms: Sequence[CropGeometry]) -> np.ndarray:
@@ -196,19 +206,37 @@ class TopDownPoseEstimator:
 
     def estimate(self, frame: FrameRef, image: torch.Tensor | np.ndarray, tracks: list[Track]) -> list[Pose]:
         """Crop from `image` (HWC uint8 main-stream frame; torch on GPU for speed, numpy works)."""
-        self.check_inputs(frame, image, tracks)
-        crop = crop_batch_np if isinstance(image, np.ndarray) else crop_batch
-        keep = [t for t in tracks if min(t.bbox[2] - t.bbox[0], t.bbox[3] - t.bbox[1]) >= self.min_box_px]
-        if not keep:
-            return []
-        geoms = [crop_geometry(t.bbox, self.backend.input_wh, self.padding) for t in keep]
-        kps = np.concatenate(
-            [
-                self.backend.infer(crop(image, geoms[i : i + self.backend.max_batch]))
-                for i in range(0, len(geoms), self.backend.max_batch)
-            ]
-        )
-        return [self._to_pose(frame, t, g, k) for t, g, k in zip(keep, geoms, kps, strict=True)]
+        return self.estimate_many([(frame, image, tracks)])[0]
+
+    def estimate_many(
+        self, items: Sequence[tuple[FrameRef, torch.Tensor | np.ndarray, list[Track]]]
+    ) -> list[list[Pose]]:
+        """Micro-batch across frames/cameras (ARCHITECTURE D9): crops from every item share
+        one backend batch (chunked at `max_batch`). Returns one list of poses per item."""
+        crops, owners = [], []
+        for n, (frame, image, tracks) in enumerate(items):
+            self.check_inputs(frame, image, tracks)
+            keep = [t for t in tracks if min(t.bbox[2] - t.bbox[0], t.bbox[3] - t.bbox[1]) >= self.min_box_px]
+            if not keep:
+                continue
+            geoms = [crop_geometry(t.bbox, self.backend.input_wh, self.padding) for t in keep]
+            crop = crop_batch_np if isinstance(image, np.ndarray) else crop_batch
+            crops.append(crop(image, geoms))
+            owners += [(n, t, g) for t, g in zip(keep, geoms, strict=True)]
+        out: list[list[Pose]] = [[] for _ in items]
+        if not owners:
+            return out
+        if isinstance(crops[0], np.ndarray):
+            batch = np.concatenate(crops)
+        else:
+            import torch
+
+            batch = torch.cat(crops)
+        mb = self.backend.max_batch
+        kps = np.concatenate([self.backend.infer(batch[i : i + mb]) for i in range(0, len(batch), mb)])
+        for (n, t, g), k in zip(owners, kps, strict=True):
+            out[n].append(self._to_pose(items[n][0], t, g, k))
+        return out
 
     def _to_pose(self, frame: FrameRef, track: Track, geom: CropGeometry, kp: np.ndarray) -> Pose:
         xy = geom.to_frame(kp[:, :2])
