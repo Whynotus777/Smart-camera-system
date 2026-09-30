@@ -260,6 +260,7 @@ def run_clipper(workdir: Path, once: bool = False, max_attempts: int = 5) -> Non
         encoder = os.environ.get("SCS_ENCODER", "libx264")
         evidence = make_evidence(cfg, store, workdir, encoder)
         clean_temp(clip_dir(workdir))
+        next_prune = 0.0
         while True:
             for job in store.clip_jobs("pending"):
                 if not evidence.ready(job.camera_id, job.t1):
@@ -278,6 +279,9 @@ def run_clipper(workdir: Path, once: bool = False, max_attempts: int = 5) -> Non
                 store.clip_done(job.alert_id, str(out), start, end)
                 crashpoint("clipper.after_done")
                 log("clipper", f"clip {job.alert_id[:8]} [{start:.1f}, {end:.1f}] done")
+            if isinstance(evidence, SegmentEvidence) and time.monotonic() >= next_prune:
+                evidence.prune()
+                next_prune = time.monotonic() + 10
             if once:
                 return
             time.sleep(0.2)

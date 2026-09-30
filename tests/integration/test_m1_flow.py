@@ -2,7 +2,7 @@
 
 Uses a synthetic clip (no people) generated with ffmpeg, plus the tracked PoC fixture for
 the one-command demo. Needs the `ffmpeg`/`ffprobe` binaries; skipped with a loud reason
-if they're missing (CI installs them, see HANDOFF.md).
+if they are missing (CI needs them installed: see docs/RELEASE.md, "Handoffs").
 """
 
 from __future__ import annotations

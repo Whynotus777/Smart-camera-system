@@ -207,6 +207,21 @@ class Store:
             (camera_id, t0, t1),
         ).fetchall()
 
+    def prune_segments(self, older_than: float) -> list[str]:
+        """Delete segment rows ending before `older_than` that no pending clip needs; return their paths."""
+        with self.tx() as c:
+            rows = c.execute(
+                "SELECT s.camera_id, s.epoch, s.idx, s.path FROM segments s WHERE s.t1 < ? AND NOT EXISTS ("
+                " SELECT 1 FROM clips j WHERE j.status='pending' AND j.camera_id=s.camera_id"
+                " AND j.t0 < s.t1 AND s.t0 < j.t1)",
+                (older_than,),
+            ).fetchall()
+            c.executemany(
+                "DELETE FROM segments WHERE camera_id=? AND epoch=? AND idx=?",
+                [(r[0], r[1], r[2]) for r in rows],
+            )
+        return [r[3] for r in rows]
+
     def segment_count(self, camera_id: str, epoch: int) -> int:
         return int(
             self._db.execute(

@@ -165,8 +165,17 @@ class FileLoopEvidence:
 
 
 class SegmentEvidence:
-    def __init__(self, store: Store, grace_s: float = 60.0) -> None:
-        self.store, self.grace_s = store, grace_s
+    def __init__(self, store: Store, grace_s: float = 60.0, retain_s: float = 120.0) -> None:
+        self.store, self.grace_s, self.retain_s = store, grace_s, retain_s
+
+    def prune(self) -> int:
+        """Bound disk use like a ring buffer: drop footage older than `retain_s` that no
+        pending clip needs (exported clips are separate files). DB row first, then file:
+        a crash in between leaves an orphan file, never a row pointing at nothing."""
+        paths = self.store.prune_segments(time.time() - self.retain_s)
+        for p in paths:
+            Path(p).unlink(missing_ok=True)
+        return len(paths)
 
     def ready(self, camera_id: str, t1: float) -> bool:
         segs = self.store.segments(camera_id, t1 - 1e-6, float("inf"))
