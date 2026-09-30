@@ -117,3 +117,20 @@ def test_batch_larger_than_engine_max(detector):
     frames = _fixture_frames(3)
     batch = [(_ref("c", i), frames[i % 3]) for i in range(detector.runner.max_batch + 3)]
     assert len(detector.detect(batch)) == len(batch)
+
+
+
+
+@pytest.mark.slow
+def test_dead_camera_isolation_real_engine(detector):
+    """D9 on the real engine: healthy cameras' p95 latency with cam3 dead / cam5 slow ≈ all alive.
+
+    Timing test: authoritative numbers come from detect_bench under `scripts/gpu exclusive`.
+    """
+    from scs.perception.detect_bench import isolation
+
+    r = isolation(detector, seconds=6.0)
+    base = r["all_alive"]["p95_ms"]
+    assert r["cam3_dead"]["p95_ms"] <= base + 3.0
+    assert r["cam5_slow_1fps"]["p95_ms"] <= base + 3.0
+    assert base < 20.0 + 15.0  # deadline + one batch of inference
