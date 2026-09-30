@@ -1,0 +1,4 @@
+# Extra packages for data_ops tools, installed next to the project:
+#   uv pip install -e ".[dev,perception]" -r data_ops/requirements.txt
+# (pyproject.toml is T00-owned; these stay out of the product package on purpose.)
+huggingface_hub>=0.34   # Apache-2.0: SmartSpaces fetch, Wan weights
