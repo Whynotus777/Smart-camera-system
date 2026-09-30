@@ -26,6 +26,31 @@ dfine-s:
       engine_sha256: 2e87f2c05344801b2bc1515cfc76e1f8377d8bda80aae798a98a3553e0f3ee34
       path: models/dfine-s/dfine_bf16_b16.engine
 
+dfine-s-retail:
+  task: T03 person detector, fine-tuned for overhead retail + indoor CCTV (recommended candidate)
+  license: Apache-2.0 (base dfine-s); training data CC-BY-4.0 (SmartSpaces, MEVA) → prod lineage
+  use: prod candidate
+  source:
+    base: dfine-s (ustc-community/dfine-small-coco @ f79e65b5fbb33ceb9d3ebba042955d7410c608f8)
+    training_data: >
+      SmartSpaces MTMC_Tracking_2024 scenes 071, 074-080 (first 5 min per camera, 1 frame / 4 s;
+      9,525 frames), MEVA train cameras (school G299/G330/G419/G420, admin G326/G329; 1,409 frames,
+      37k GT + 5.5k pseudo-labels from dfine-s for unlabelled bystanders). Test/val scenes and
+      sites excluded (T09 splits).
+    weights_sha256: 6139d3d9b0a6f5abb85847ab8168c850e316f08d66af9b6c7adf438f1bd0ac9e  # runs/t03/ft/dfine_s_retail/last/model.safetensors (not committed)
+  recipe: >
+    python -m scs.perception.detect_finetune build --teacher-engine models/dfine-s/dfine_bf16_b16.engine;
+    scripts/gpu exclusive -- python -m scs.perception.detect_finetune train-dfine --epochs 10 --batch 16;
+    scripts/gpu exclusive -- python -m scs.perception.detect_export dfine --weights runs/t03/ft/dfine_s_retail/last --out models/dfine-s-retail
+  engines:
+    - gpu: NVIDIA GeForce RTX 5090 (sm_120), driver 580.173.02
+      tensorrt: 10.16.1.11
+      torch: 2.11.0+cu128
+      precision: bf16 (1318 layers pinned fp32)
+      onnx_sha256: 80b4754d664e913712e8b677cfdd3b193de40f791886ed0c5265c873462aa917
+      engine_sha256: c7acec0591993f63c029419cd3ce8f7995bbd5f5ab48271a8a3167d7927bff55
+      path: models/dfine-s-retail/dfine_bf16_b16.engine
+
 yolo11s:
   task: T03 person detector (comparison only)
   license: AGPL-3.0 (ultralytics); enterprise license needed before any customer build
@@ -43,3 +68,19 @@ yolo11s:
       onnx_sha256: d106d4da03f4c0b02f61ac42e1d8f9bc34decadf1731e80f0fe4c2e402312768
       engine_sha256: cf0a09bbd91345de423e8c9c4d36081377449866eb940b2849a36fce2cc467d1
       path: models/yolo11s/yolo11s_fp16_b16.engine
+
+yolo11s-retail:
+  task: T03 comparison detector, fine-tuned (same data as dfine-s-retail)
+  license: AGPL-3.0 (inherits from yolo11s)
+  use: R&D
+  source: {base: yolo11s, training: "ultralytics train, 20 epochs, batch 32, single_cls, imgsz 640"}
+  recipe: >
+    scripts/gpu exclusive -- python -m scs.perception.detect_finetune train-yolo --epochs 20 --batch 32;
+    scripts/gpu exclusive -- python -m scs.perception.detect_export yolo11 --weights runs/t03/ft/yolo11s_retail/weights/best.pt --out models/yolo11s-retail
+  engines:
+    - gpu: NVIDIA GeForce RTX 5090 (sm_120), driver 580.173.02
+      tensorrt: 10.16.1.11
+      precision: fp16
+      onnx_sha256: 2fd0aa632d21dfada3c57b35bcf1b8b4d6246b699020c5c1e1e25a7d991ae72a
+      engine_sha256: 198dcc1995778a7436668aed34446d42fe572fed0a78cbdcdd3070a048e7ba27
+      path: models/yolo11s-retail/best_fp16_b16.engine
