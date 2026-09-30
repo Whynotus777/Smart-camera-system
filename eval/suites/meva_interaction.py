@@ -85,6 +85,10 @@ class MevaInteraction(Suite):
             thr_src = "ORACLE on test (no val clips available)"
             notes.append("No val clips: threshold fit on test (oracle). Not a valid generalization number.")
         op = operating_point(test, thr, dup, ctx.bootstrap)
+        val_h = sum(val.unit_hours.values()) if val.unit_hours else 0.0
+        if val_ok and budget * val_h < 1:
+            notes.append(f"val has {val_h:.1f} camera-hours: one false detection = {1 / val_h:.2f}/h "
+                         f"> budget {budget:g}/h, so the fit tolerates zero val false positives (coarse)")
         oracle = {}
         for b in (0.1, 1.0, 10.0):
             t = threshold_at_budget(test, b, dup)

@@ -66,7 +66,16 @@ to naive concatenation in `test_fast_weighted_bootstrap_equals_naive_concatenati
 Reference pipelines with hand-known answers (`eval/models/reference_pipelines.py`), real video:
 
 - `meva_interaction` + `GTReplayPipeline` (emits the labels causally through the real decode path):
-  RESULTS_PLACEHOLDER
+  all 271 converted val+test clips (2,439,799 frames decoded, 0 crashes): **recall 1.000 [1.000, 1.000]
+  on 1,507 test positives / 204 clips / 17.0 camera-hours, 0 false, 0 duplicates, latency p95 0.0 s**,
+  threshold fit on val (school.G423) and frozen; per-type recall 1.0 for pickup / put-down / transfer.
+  The first full run returned recall 0.0, which exposed a real matching bug: a prediction on an
+  ignore region (MEVA `not_good`) used the 2-s tolerance to grab the next positive, cascading into
+  duplicates that pushed val over budget. Fixed (true intersection beats tolerance-only overlap)
+  and pinned by `test_alert_on_ignore_region_does_not_steal_nearby_positive`; re-scored from the
+  cached pipeline outputs at `7d22d56`.
+- Budget resolution: val is 5.6 camera-hours, so at 0.1/h the fit tolerates zero val false
+  detections. The suite notes this; see decision 4.
 - `smartspaces_track` with GT as predictions (1,500 frames × 16 test cameras): IDF1 1.000, AP@0.5
   1.000, 0 ID switches (sanity only; correctness of IDF1/switches is from the motmetrics cross-check).
 - Synthetic e2e tests: periodic alerts every 5 s → exactly 540 false alerts per camera-hour on
