@@ -27,7 +27,7 @@ from collections import Counter
 from pathlib import Path
 
 from data_ops.budget import GB
-from data_ops.fetch.common import RemoteFile, fetch_all, run, tool
+from data_ops.fetch.common import RemoteFile, backfill_video, fetch_all, run, tool, video_summary
 from data_ops.manifest import Manifest
 from data_ops.paths import dataset_dir
 
@@ -58,7 +58,8 @@ META = {
     "attribution": ('"Multiview Extended Video with Activities" (MEVA) dataset by Kitware Inc. and the '
                     "Intelligence Advanced Research Projects Activity (IARPA), CC BY 4.0. https://mevadata.org"),
     "use": "prod",
-    "notes": "Not retail; scripted actors. Numbers are a proxy (docs/DATA.md).",
+    "notes": ("Not retail; scripted actors. Numbers are a proxy (docs/DATA.md). Resolution is NOT uniform: "
+              "most indoor cameras are 1920x1072, some 1920x1080 (per-file `video` has the truth)."),
 }
 
 
@@ -153,5 +154,8 @@ def fetch(max_gb: float, jobs: int = 8, dry_run: bool = False, log=print) -> int
         run([aws, "s3", "cp", "--no-sign-request", "--only-show-errors", rf.source, str(dest)])
 
     stats = fetch_all(files, root / "raw", man, man_path, download, jobs=jobs, log=log)
+    backfill_video(man, man_path, root / "raw", log=log)
+    man.notes = f"{man.notes} Video: {video_summary(man)}."
+    man.save(man_path)
     log(f"meva: done {stats}; manifest {man_path} ({man.total_bytes() / GB:,.1f} GB recorded)")
     return 1 if stats["failed"] else 0
