@@ -51,7 +51,7 @@ that consumers can be restarted and recordings can be replayed.
 
 | # | Decision | Why | Revisit when |
 |---|---|---|---|
-| D1 | Decode **main stream only**, resize on GPU for detection | Sub-stream (640×360) puts a hand at ~6 px at 5 m; main (2560×1440) ≈ 25 px. One decode avoids syncing two streams with different timestamps. | NVDEC budget exceeded on edge target (T12 measures). |
+| D1 | Decode **main stream only**, resize on GPU for detection; all boxes/keypoints are main-stream pixels (ADR 0002) | Sub-stream (640×360) puts a hand at ~6 px at 5 m; main (2560×1440) ≈ 25 px. One decode avoids syncing two streams with different timestamps. | NVDEC budget exceeded on edge target (T12 measures). |
 | D2 | **Journey logic, not gesture alarms** | Single-frame "concealing/looking around" rules fire on phones and chairs (see legacy demos). Theft = sequence across zones; exit-without-checkout is the strongest cheap signal. | — |
 | D3 | Behavior models run on **pose sequences** first | Public retail theft data (PoseLift, RetailS) is pose-only; pose is privacy-preserving and camera-agnostic; small models, fast to retrain per store. | If pose AUC plateaus, add clip-level video model on alert candidates only. |
 | D4 | Zone-gated pose | Pose is the most expensive per-person stage; most people in a c-store at a given moment aren't at a shelf. | — |
@@ -114,7 +114,7 @@ unsupported by current toolchains.
 
 | File | Keep? | Notes |
 |---|---|---|
-| `camera_system_with_lstm.py` | Reference only | Imports 4 modules not in repo; LSTM weights never existed. Zone JSON format and reconnect loop are worth porting. |
-| `deepsort_poc.py` | Reference only | Source of the demo videos; item-overlap rule generates false positives. |
-| `dispatcher_agent.py`, `simulation_trigger.py` | Park | Robot dispatch is out of scope for the pilot. The sim stub's intent moves to T08 (synthetic training data). |
-| `alerts/notifier.py`, `stream/multi_cam_stream.py` | Replace | T10 / T02. |
+| `legacy/camera_system_with_lstm.py` | Reference only | Imports 4 modules not in repo; LSTM weights never existed. Zone JSON format and reconnect loop are worth porting. |
+| `legacy/deepsort_poc.py` | Reference only | Source of the demo videos (now `tests/fixtures/video/`); item-overlap rule generates false positives. |
+| `legacy/dispatcher_agent.py`, `legacy/simulation_trigger.py` | Park | Robot dispatch is out of scope for the pilot. The sim stub's intent moves to T08 (synthetic training data). |
+| `legacy/alerts/notifier.py`, `legacy/stream/multi_cam_stream.py` | Replace | T10 / T02. |

@@ -1,6 +1,6 @@
 # T02 — Ingest
 
-**Wave 1 · owned:** `src/scs/ingest/`
+**Wave 1 · owned:** `src/scs/ingest/`, `scripts/rtsp_probe.py`
 
 ## Goal
 Robust, timestamped frames from RTSP cameras, video files, sim output, and emulated streams through one `FrameSource` interface.
@@ -8,7 +8,7 @@ Robust, timestamped frames from RTSP cameras, video files, sim output, and emula
 ## Deliverables
 1. `RtspSource`: GStreamer (preferred, NVDEC via `nvh264dec`/`nvh265dec` or `nvv4l2decoder`) with a PyAV fallback. Main stream by default (ARCHITECTURE D1). Handles H.264 and H.265.
 2. Reconnect with exponential backoff (cap 30 s); emits `Event(type=CAMERA_HEALTH)` on disconnect/reconnect/stall (> 3 s no frames) to `Streams.HEALTH`.
-3. Timestamps: wall-clock at decode and monotonic, stored in `FrameRef.ts`; record RTSP/RTP timestamps in `data` when available for drift checks.
+3. Timestamps (ADR 0002): `FrameRef.ts` = wall clock at decode, `FrameRef.ts_mono` = host monotonic clock at decode, `FrameRef.source_ts` = capture time from the RTSP/RTP clock when available (T00 Addendum), for drift checks. `FrameRef.width/height` are always the main-stream dimensions; set `stream` to the stream actually decoded.
 4. `FileSource` (loops optionally, `realtime=True` paces to fps) and `DirectorySource` for sim frames.
 5. Multi-camera manager: one decode worker per camera, bounded queue (drop-oldest), per-camera fps/latency stats.
 6. Frames available as GPU tensors (torch, via DLPack or CUDA memory) when GPU decode is used; CPU numpy otherwise.

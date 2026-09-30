@@ -30,6 +30,7 @@ Wave 3
   → Gate G1
                       ▼
 Human-in-the-loop
+  H1a quick capture (week 1: 1 cam, 30 min; unblocks T03/T04/T07 criteria)
   H1 lab mock-aisle recording (start week 1, runs in parallel with everything)
   → Gate G2 → CTO hand-off → store shadow → G3
 ```
@@ -40,6 +41,7 @@ Human-in-the-loop
 |---|---|---|---|
 | H0 | **Rotate the Reolink admin password now**; it was public in git history. Then decide on history rewrite (`git filter-repo`) + force push, or make the repo private. | Abdul/Ishan | Today |
 | H0b | Commit the four missing legacy modules (`pose_action_detector`, `lstm_action_classifier`, `video_recorder`, `byte_tracker_fixed`) to `legacy/` so agents can port their zone/recorder logic. | Ishan | Week 1 |
+| H1a | **Quick capture** (`quick_capture` in `docs/DATA.md`): one Reolink at ~2.7 m, **simultaneous main + sub recording**, 30 min, 2 people. Staged pick/return/conceal takes, each with a **benign matched pair** (same motion, no concealment). Log `take_id, subtype, t_start, t_end` in real time. Feeds T03 baseline, T04 wrist PCK, T07 real-vs-emulated. | Team | Week 1 (before H1) |
 | H1 | Build a mock aisle (shelf, candy rack, counter, door) and record `lab_mock_aisle` per `docs/DATA.md` protocol. | Team | Weeks 1–3 |
 | H2 | Email RetailS authors re commercial license; check MERL Shopping license. | Abdul | Week 1 |
 | H3 | Decide Ultralytics enterprise license vs. Apache-only stack (T03/T04 produce the comparison). | Abdul + CTO | After G1 |
