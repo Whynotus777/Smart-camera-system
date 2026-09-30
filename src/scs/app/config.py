@@ -7,6 +7,7 @@ web) reads the same settings after a restart, without re-parsing CLI flags.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -25,7 +26,9 @@ class AppConfig(BaseModel):
     site_id: str = "m1-demo"
     camera_id: str = "cam01"
     camera_profile: str = "unknown"  # configs/camera_profiles id when known
-    source: str  # file path, or rtsp:// URL (live)
+    # File path, or "env:NAME" for a live camera whose rtsp:// URL is in $NAME. URLs can
+    # carry credentials, so they're never written to config.json (CameraInstall convention).
+    source: str
     loop: bool = True  # file sources loop forever, like a camera
     speed: float = Field(default=1.0, gt=0)  # file pacing: 1 = real time, 0 < x: x times faster
     analytics_width: int = 160
@@ -41,7 +44,16 @@ class AppConfig(BaseModel):
 
     @property
     def is_live(self) -> bool:
-        return self.source.startswith(("rtsp://", "rtsps://"))
+        return self.source.startswith("env:")
+
+    def resolved_source(self) -> str:
+        if not self.is_live:
+            return self.source
+        name = self.source[4:]
+        url = os.environ.get(name)
+        if not url or not url.startswith(("rtsp://", "rtsps://")):
+            raise SystemExit(f"${name} must hold an rtsp:// URL")
+        return url
 
     @property
     def zone_polygon(self) -> list[NormPoint]:

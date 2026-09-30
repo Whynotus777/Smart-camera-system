@@ -169,3 +169,35 @@ def test_injected_event_gets_clip(tmp_path: Path, video: Path) -> None:
         assert items[0]["alert"]["reason_codes"] == ["injected_test_event"]
     finally:
         stack.stop()
+
+
+def test_demo_supervisor_kill9_leaves_no_orphans_and_resumes(tmp_path: Path, video: Path) -> None:
+    import os
+    import signal
+
+    port = free_port()
+    wd = tmp_path / "demo"
+    cmd = [sys.executable, "-m", "scs.app", "demo", "--video", str(video), "--workdir", str(wd),
+           "--speed", "8", "--port", str(port)]
+    env = {**os.environ, "PYTHONPATH": str(REPO / "src")}
+    demo = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True, env=env, cwd=REPO)  # noqa: S603
+    assert demo.stdout is not None
+    _wait(lambda: "Review queue:" in (demo.stdout.readline() or ""), 90, "review URL")
+    roles = [int(p) for p in subprocess.run(["pgrep", "-f", f"scs.app run .* --workdir {wd}"],  # noqa: S603, S607
+                                            capture_output=True, text=True).stdout.split()]
+    assert len(roles) == 3
+    os.kill(demo.pid, signal.SIGKILL)
+    demo.wait()
+    _wait(lambda: not any(Path(f"/proc/{p}").exists() for p in roles), 10, "roles to die with the supervisor")
+    st = Store(db_path(wd))
+    before = set(st.event_ids())
+    st.close()
+
+    # same workdir: resumes the timeline, keeps the port, and adds no duplicates
+    out = subprocess.run([*cmd, "--exit-when-ready", "--timeout", "60"], capture_output=True, text=True,  # noqa: S603
+                         env=env, cwd=REPO, timeout=90)
+    assert out.returncode == 0 and f"Review queue: http://127.0.0.1:{port}/" in out.stdout, out.stderr[-2000:]
+    st = Store(db_path(wd))
+    after = st.event_ids()
+    st.close()
+    assert before <= set(after) and len(after) == len(set(after))

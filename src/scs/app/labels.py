@@ -26,6 +26,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from scs.app.crash import crashpoint
 from scs.app.store import Store
 from scs.contracts import CONTRACTS_VERSION
 
@@ -39,6 +40,7 @@ def _atomic_json(path: Path, obj: Any) -> None:
         os.fsync(fd)
     finally:
         os.close(fd)
+    crashpoint("web.label_before_rename")
     os.replace(tmp, path)
 
 

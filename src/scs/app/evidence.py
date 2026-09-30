@@ -24,6 +24,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
+from scs.app.crash import crashpoint
 from scs.app.source import FFMPEG, VideoInfo, die_with_parent
 from scs.app.store import Store
 
@@ -58,6 +59,7 @@ def atomic_ffmpeg(args: list[str], out: Path, timeout: float = 120) -> None:
             os.fsync(fd)
         finally:
             os.close(fd)
+        crashpoint("clipper.before_rename")
         os.replace(tmp, out)
         dfd = os.open(out.parent, os.O_RDONLY)
         try:

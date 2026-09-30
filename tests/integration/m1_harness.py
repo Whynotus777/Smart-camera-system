@@ -154,6 +154,8 @@ class Stack:
         self.logs = workdir / "logs"
         self.logs.mkdir(parents=True, exist_ok=True)
         self.kills: list[str] = []
+        self.self_crashes = 0
+        self._killed_by_us: dict[str, bool] = {}
 
     def start(self, role: str) -> None:
         log = open(self.logs / f"{role}.log", "a")  # noqa: SIM115
@@ -170,7 +172,10 @@ class Stack:
 
     def ensure_running(self) -> None:
         for r in ROLES:
-            if r not in self.procs or self.procs[r].poll() is not None:
+            p = self.procs.get(r)
+            if p is None or p.poll() is not None:
+                if p is not None and p.returncode == -9 and not self._killed_by_us.pop(r, False):
+                    self.self_crashes += 1  # a crashpoint fired (scs.app.crash)
                 self.start(r)
 
     def kill(self, target: str) -> None:
@@ -187,6 +192,7 @@ class Stack:
                 return
             p.kill()
             p.wait()
+            self._killed_by_us[target] = True
         self.kills.append(target)
 
     def stop_and_drain(self, timeout: float = 60.0) -> None:
@@ -303,7 +309,14 @@ def check_invariants(
     acked: dict[str, str] | None,
     reference: dict[str, dict] | None,
     require_all_reviewed: bool = True,
+    outages: list[tuple[float, float]] = (),  # type: ignore[assignment]
 ) -> Report:
+    """Check the M1 invariants (module docstring).
+
+    `outages`: wall-clock windows when a live camera was unreachable. Footage from them
+    doesn't exist, so clips overlapping one are exempt from the coverage checks (they
+    must still exist and be playable).
+    """
     cfg = cfgmod.load(workdir)
     st = Store(db_path(workdir))
     rep = Report()
@@ -311,10 +324,15 @@ def check_invariants(
     try:
         cp = st.load_checkpoint(cfg.camera_id)
         rep.final_position = -1 if cp is None else cp.media_frame
+        if cp is not None and "origin_ts" in cp.state:  # file camera: nothing before it started
+            outages = [*outages, (0.0, cp.state["origin_ts"])]
         ids = st.event_ids()
         rep.events = len(ids)
         if len(ids) != len(set(ids)):
             err("duplicate event ids")
+        fires = [json.dumps(_event_key(st, eid)["fire"]) for eid in ids]
+        if len(fires) != len(set(fires)):
+            err("the same detection was persisted as more than one event (non-deterministic ids?)")
         if reference is not None:
             if not reference:
                 err("reference run produced no events: the test would pass vacuously")
@@ -356,6 +374,8 @@ def check_invariants(
             assert job.clip_start is not None and job.clip_end is not None
             pre, post = alert.ts_open - job.clip_start, job.clip_end - alert.ts_open
             dur = float(info["format"]["duration"])
+            if any(job.t0 < b and a < job.t1 for a, b in outages):
+                continue
             if pre < MIN_PRE_S or post < MIN_POST_S:
                 err(f"clip {p.name} covers {pre:.1f}s before / {post:.1f}s after (need ≥10/≥5)")
             if dur < (job.clip_end - job.clip_start) - 0.5:

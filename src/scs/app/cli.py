@@ -57,9 +57,7 @@ def _get_json(url: str, timeout: float = 2.0) -> Any:
 def cmd_demo(a: argparse.Namespace) -> int:
     workdir = Path(a.workdir or f"runs/demo/{time.strftime('%Y%m%d-%H%M%S')}").resolve()
     if a.rtsp_env:
-        source = os.environ.get(a.rtsp_env)
-        if not source:
-            raise SystemExit(f"${a.rtsp_env} is not set")
+        source = f"env:{a.rtsp_env}"
     else:
         source = str(resolve_video(a.video))
     if cfgmod.config_path(workdir).exists():
@@ -67,6 +65,8 @@ def cmd_demo(a: argparse.Namespace) -> int:
     else:
         cfg = cfgmod.AppConfig(source=source, speed=a.speed, port=a.port, host=a.host)
         cfgmod.save(cfg, workdir)
+    if cfg.is_live:
+        cfg.resolved_source()  # fail fast if the env var is missing
     env = {"SCS_ENCODER": "h264_nvenc"} if a.gpu else {}
     url = f"http://{cfg.host}:{cfg.port}/"
     print(f"workdir: {workdir}", flush=True)

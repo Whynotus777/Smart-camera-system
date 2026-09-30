@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import ctypes
 import json
+import os
 import signal
 import subprocess
 import time
@@ -35,6 +36,8 @@ from scs.contracts import FrameRef
 
 FFMPEG = "ffmpeg"
 FFPROBE = "ffprobe"
+# GPU variant: SCS_HWACCEL=cuda decodes on NVDEC (frames are downloaded for the CPU stand-ins).
+HWACCEL = ["-hwaccel", os.environ["SCS_HWACCEL"]] if os.environ.get("SCS_HWACCEL") else []
 
 
 def die_with_parent() -> None:
@@ -85,7 +88,9 @@ def probe(path: str, cache: Path | None = None) -> VideoInfo:
     )
     if cache is not None:
         cache.parent.mkdir(parents=True, exist_ok=True)
-        cache.write_text(json.dumps(info.__dict__))
+        tmp = cache.with_name(f".{cache.name}.{os.getpid()}.tmp")  # a torn cache would crash-loop us
+        tmp.write_text(json.dumps(info.__dict__))
+        os.replace(tmp, cache)
     return info
 
 
@@ -111,14 +116,21 @@ def decode_gray(
     start_frame: int = 0,
     fps: float = 0,
     extra_in: list[str] | None = None,
+    select_every: int = 1,
+    hwaccel: bool = True,
 ) -> Iterator[np.ndarray]:
-    """Decode a file (from `start_frame`, frame-accurately) to HxW uint8 grayscale frames."""
+    """Decode a file (from `start_frame`, frame-accurately) to HxW uint8 grayscale frames.
+
+    `select_every=k` keeps every k-th decoded frame (one pass, one process).
+    """
     ss = [] if start_frame == 0 else ["-ss", f"{(start_frame - 0.5) / fps:.6f}"]
+    select = f"select='not(mod(n\\,{select_every}))'," if select_every > 1 else ""
     cmd = [
         FFMPEG,
         "-v",
         "error",
         "-nostdin",
+        *(HWACCEL if hwaccel else []),
         *(extra_in or []),
         *ss,
         "-i",
@@ -126,7 +138,7 @@ def decode_gray(
         "-map",
         "0:v:0",
         "-vf",
-        f"scale={width}:{height}:flags=area,format=gray",
+        f"{select}scale={width}:{height}:flags=area,format=gray",
         "-fps_mode",
         "passthrough",
         "-f",
@@ -149,13 +161,13 @@ def decode_gray(
 
 
 def median_background(path: str, info: VideoInfo, width: int, height: int, samples: int = 25) -> np.ndarray:
-    """Median of frames sampled evenly across the file: people who move get voted out."""
-    frames = []
-    for k in range(samples):
-        i = int(k * info.n_frames / samples)
-        f = next(decode_gray(path, width, height, start_frame=i, fps=info.fps), None)
-        if f is not None:
-            frames.append(f)
+    """Median of frames sampled evenly across the file: people who move get voted out.
+
+    One decode pass on the CPU. (25 seeks meant 25 ffmpeg starts, ~25 s with NVDEC init:
+    longer than the chaos test's time between kills, so a restarting ingest never got up.)
+    """
+    step = max(1, info.n_frames // samples)
+    frames = list(decode_gray(path, width, height, select_every=step, hwaccel=False))[:samples]
     return np.median(np.stack(frames), axis=0).astype(np.uint8)
 
 
@@ -296,6 +308,7 @@ class LiveSource:
             "-nostdin",
             "-rtsp_transport",
             "tcp",
+            *HWACCEL,
             "-timeout",
             str(int(self.io_timeout_s * 1e6)),
             "-i",

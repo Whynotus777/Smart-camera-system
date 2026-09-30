@@ -38,6 +38,9 @@ from scs.app.roles import db_path, file_info
 from scs.app.store import Store
 
 TARGETS = ("ingest", "clipper", "web", "ingest-ffmpeg")
+# Self-kill probabilities at the durable boundaries (scs.app.crash); first match wins.
+# Ingest commits ~16x/s at 8x speed but only ~3 per run carry events: those get p=0.5.
+CRASHPOINTS = "ingest.*.event=0.5,ingest.*=0.02,clipper.*=0.25,web.*=0.25"
 
 
 def _position(workdir: Path, camera_id: str) -> int:
@@ -74,6 +77,7 @@ def run_chaos(
     kill_gap: tuple[float, float] = (0.2, 1.2),
     timeout_s: float = 240.0,
     env: dict[str, str] | None = None,
+    crashpoints: str = CRASHPOINTS,
 ) -> tuple[Report, dict]:
     rng = random.Random(seed)
     port = free_port()
@@ -81,7 +85,7 @@ def run_chaos(
     cfgmod.save(cfg, workdir)
     n_frames = file_info(workdir, str(video)).n_frames
     target_pos = loops * n_frames
-    stack = Stack(workdir, env)
+    stack = Stack(workdir, {**(env or {}), "SCS_CRASHPOINTS": crashpoints})
     stack.start_all()
     reviewer = Reviewer(f"http://127.0.0.1:{port}/", seed)
     reviewer.start()
@@ -122,6 +126,7 @@ def run_chaos(
     stats = {
         "seed": seed,
         "kills": len(stack.kills),
+        "self_crashes": stack.self_crashes,
         "by_target": {t: stack.kills.count(t) for t in TARGETS},
         "review_posts": reviewer.attempts,
         "wall_s": round(time.monotonic() - t0, 1),

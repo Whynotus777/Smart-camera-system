@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any
 
 from scs.app import config as cfgmod
+from scs.app.crash import crashpoint
 from scs.app.labels import export_labels
 from scs.app.roles import clip_dir, db_path, file_info, log, role_lock
 from scs.app.store import DECISIONS, ReviewConflict, Store
@@ -202,7 +203,9 @@ def make_handler(app: App) -> type[BaseHTTPRequestHandler]:
                         reason=body.get("reason"),
                         reviewer=body.get("reviewer"),
                     )
+                    crashpoint("web.after_commit")  # stored, not yet exported or acked
                     app.export(only=m.group(1))
+                    crashpoint("web.before_response")
             except KeyError:
                 return self._json(404, {"error": "unknown alert"})
             except ReviewConflict as e:

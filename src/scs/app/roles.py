@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 
 from scs.app import config as cfgmod
+from scs.app.crash import crashpoint
 from scs.app.evidence import EvidenceStore, FileLoopEvidence, SegmentEvidence, build_master, clean_temp
 from scs.app.source import (
     FileLoopSource,
@@ -81,10 +82,13 @@ def run_ingest(workdir: Path, stop_after_frames: int | None = None) -> None:
     cfg = cfgmod.load(workdir)
     with role_lock(workdir, "ingest"):
         store = Store(db_path(workdir))
-        if cfg.is_live:
-            _ingest_live(cfg, store, workdir, stop_after_frames)
-        else:
-            _ingest_file(cfg, store, workdir, stop_after_frames)
+        try:
+            if cfg.is_live:
+                _ingest_live(cfg, store, workdir, stop_after_frames)
+            else:
+                _ingest_file(cfg, store, workdir, stop_after_frames)
+        finally:
+            store.close()
 
 
 def _background(workdir: Path, cfg: cfgmod.AppConfig, info: VideoInfo) -> np.ndarray:
@@ -148,14 +152,14 @@ def _ingest_live(cfg: cfgmod.AppConfig, store: Store, workdir: Path, stop_after:
 
     src = LiveSource(
         cfg.camera_id,
-        cfg.source,
+        cfg.resolved_source(),
         cfg.analytics_width,
         seg_root,
         cfg.segment_s,
         new_epoch=lambda: store.new_epoch(cfg.camera_id),
         on_segments=on_segments,
     )
-    log("ingest", f"live source {cfg.camera_id} (url from config, not logged)")
+    log("ingest", f"live source {cfg.camera_id} from ${cfg.source[4:]} (url not logged)")
 
     def frames() -> Iterator[tuple]:
         warm: list[np.ndarray] = []
@@ -228,7 +232,10 @@ def _pipeline(
                 ref.ts,
                 {**extra_state, "tracker": tracker.state(), "engine": engine.state()},
             )
+            kind = ".event" if events else ""  # commits that carry events are the rare, risky ones
+            crashpoint(f"ingest.before_commit{kind}")
             new = store.commit_frames(cp, events, alerts, windows)
+            crashpoint(f"ingest.after_commit{kind}")
             for e in events:
                 log(
                     "ingest",
@@ -292,6 +299,7 @@ def run_clipper(workdir: Path, once: bool = False, max_attempts: int = 5) -> Non
                 if not evidence.ready(job.camera_id, job.t1):
                     continue
                 store.clip_attempt(job.alert_id)
+                crashpoint("clipper.after_attempt")
                 out = clip_dir(workdir) / f"{job.alert_id}.mp4"
                 try:
                     start, end = evidence.export(job.camera_id, job.t0, job.t1, out)
@@ -300,7 +308,9 @@ def run_clipper(workdir: Path, once: bool = False, max_attempts: int = 5) -> Non
                     if job.attempts + 1 >= max_attempts:
                         store.clip_failed(job.alert_id, repr(e))
                     continue
+                crashpoint("clipper.after_export")  # file in place, row still pending
                 store.clip_done(job.alert_id, str(out), start, end)
+                crashpoint("clipper.after_done")
                 log("clipper", f"clip {job.alert_id[:8]} [{start:.1f}, {end:.1f}] done")
             if once:
                 return
