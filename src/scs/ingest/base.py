@@ -25,7 +25,9 @@ class FrameSource(Protocol):
     def frames(self) -> Iterator[tuple[FrameRef, np.ndarray | torch.Tensor]]:
         """Yield `(ref, image)` pairs in decode order.
 
-        `image` is a torch tensor on the GPU when decoded with NVDEC, otherwise an
-        HxWx3 numpy array. `ref.width`/`ref.height` describe `image`.
+        `image` is HxWx3 uint8 RGB: a CUDA torch tensor when the source was asked for
+        `output="torch"`, otherwise a numpy array. `ref.width`/`ref.height` are the
+        main-stream dimensions (ADR 0002); they equal the image size unless the source
+        decodes the sub-stream (`ref.stream == "sub"`) or `ref.transform` is set.
         """
         ...
