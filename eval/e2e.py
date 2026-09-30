@@ -369,16 +369,21 @@ def run_clips(
     ]
     if cache_dir:
         cache_dir.mkdir(parents=True, exist_ok=True)
-    it = map(_worker, args) if workers <= 1 else ProcessPoolExecutor(workers).map(_worker, args)
-    for i, d in enumerate(it):
-        o = ClipOutput.from_json(d)
-        results[o.clip_id] = o
-        if cache_dir and o.error is None:
-            (cache_dir / f"{o.clip_id}.json").write_text(json.dumps(o.to_json()))
-        log(
-            f"e2e: {i + 1}/{len(todo)} {o.clip_id}: {o.n_frames} frames, {len(o.items)} items"
-            + (f", CRASH: {o.error.splitlines()[-1]}" if o.error else "")
-        )
+    pool = ProcessPoolExecutor(workers) if workers > 1 and len(args) > 1 else None
+    try:
+        it = pool.map(_worker, args) if pool else map(_worker, args)
+        for i, d in enumerate(it):
+            o = ClipOutput.from_json(d)
+            results[o.clip_id] = o
+            if cache_dir and o.error is None:
+                (cache_dir / f"{o.clip_id}.json").write_text(json.dumps(o.to_json()))
+            log(
+                f"e2e: {i + 1}/{len(todo)} {o.clip_id}: {o.n_frames} frames, {len(o.items)} items"
+                + (f", CRASH: {o.error.splitlines()[-1]}" if o.error else "")
+            )
+    finally:
+        if pool:
+            pool.shutdown(cancel_futures=True)
     return results
 
 
