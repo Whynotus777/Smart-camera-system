@@ -46,8 +46,7 @@ markers = [
 [tool.ruff]
 line-length = 110
 target-version = "py311"
-extend-exclude = ["deepsort_poc.py", "camera_system_with_lstm.py", "dispatcher_agent.py",
-                  "simulation_trigger.py", "testcamera.py", "alerts", "stream"]
+extend-exclude = ["legacy"]  # reference-only PoC (legacy/README.md)
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S"]

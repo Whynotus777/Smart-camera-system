@@ -51,7 +51,7 @@ Camera URLs come from environment variables, never from code or configs. Copy
 | `src/scs/bus.py` | Redis Streams helper, plus an in-memory fake for tests |
 | `src/scs/<area>/base.py` | Stage interfaces: ingest, perception, behavior, events, verify |
 | `configs/` | Camera profiles and an example site config |
-| `tests/fixtures/` | Synthetic Track/Pose JSONL for building without cameras |
+| `tests/fixtures/` | Synthetic Track/Pose JSONL, plus two short PoC clips in `video/` |
 | `docs/` | Architecture, roadmap, eval spec, data/license registry, security, ADRs |
 | `tasks/` | One brief per workstream (T00–T12) |
 | `legacy/` | The Sept-2025 PoC, reference only |
@@ -63,7 +63,10 @@ a Redis robot-dispatch demo) is in [`legacy/`](legacy/README.md). It's kept as a
 reference: `docs/ARCHITECTURE.md` §6 lists what's worth porting. It isn't part of the
 package, nothing imports it, and single-frame gesture alerting is retired.
 `legacy/camera_system_with_lstm.py` can't run until four missing modules are
-committed (ROADMAP H0b). `demo_1.mp4` and `demo2.mp4` at the root are the PoC's output videos.
+committed (ROADMAP H0b). The PoC's two short output clips are kept as test fixtures in
+`tests/fixtures/video/` (see the README there). No model weights are tracked; they're
+downloaded at runtime or built locally into `models/` (gitignored, except
+`models/MANIFEST.yaml`).
 
 ## Authors
 

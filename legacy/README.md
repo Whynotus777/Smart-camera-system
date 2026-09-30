@@ -26,6 +26,10 @@ recreate these modules from guesses.
 
 ## Running it
 
+No weights are committed. The scripts load `yolov8n.pt`, which Ultralytics downloads
+on first use (AGPL-3.0, R&D only; see `docs/DATA.md`). The PoC's output clips are in
+`tests/fixtures/video/`.
+
 Camera URLs come from environment variables (`SCS_CAM1_RTSP_URL`; see `.env.example`
 at the repo root). The code expects to run from this directory. Nothing in
 `src/scs/` depends on it.

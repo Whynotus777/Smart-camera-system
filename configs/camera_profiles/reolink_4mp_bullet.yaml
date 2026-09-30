@@ -1,5 +1,5 @@
 # Reolink 4MP-class bullet/dome, as used in the Sept-2025 lab PoC.
-# Sub-stream values are MEASURED from demo_1.mp4 / demo2.mp4 (640x360 @ 20 fps).
+# Sub-stream values are MEASURED from tests/fixtures/video/demo_1.mp4, demo2.mp4 (640x360 @ 20 fps).
 # Main-stream + optics are TYPICAL for this class — verify against the exact
 # model's datasheet and flip `verified: true` (T07 owns this).
 id: reolink_4mp_bullet
