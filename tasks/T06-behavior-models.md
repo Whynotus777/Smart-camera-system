@@ -1,6 +1,6 @@
 # T06 — Behavior models on pose sequences
 
-**Wave 2 · owned:** `src/scs/behavior/`, `eval/suites/public_pose*`
+**Wave 2 · owned:** `src/scs/behavior/`, `eval/suites/public_pose.py` (built on T09's framework)
 
 ## Goal
 A `BehaviorModel` that outputs a calibrated suspiciousness score per track window, trained with public + synthetic data now and staged lab data when it arrives.

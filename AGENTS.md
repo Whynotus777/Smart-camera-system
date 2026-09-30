@@ -26,7 +26,9 @@ Read next: `docs/ARCHITECTURE.md` → `docs/ROADMAP.md` → your task in `tasks/
    Anything else (rename, remove, change meaning) needs `docs/adr/NNNN-*.md` and a
    `CONTRACTS_VERSION` bump, in a PR that touches nothing else.
 4. **Never commit**: credentials, RTSP URLs, video, images of real people, datasets,
-   model weights (`*.pt/*.pth/*.engine/*.onnx`). `data/`, `models/`, `runs/` are gitignored.
+   model weights (`*.pt/*.pth/*.engine/*.onnx`). `data/`, `models/`, `runs/` are gitignored
+   (except `models/MANIFEST.yaml`). The only tracked video is the two PoC clips in
+   `tests/fixtures/video/` (owner decision).
    Datasets are registered in `docs/DATA.md` with their license; weights in `models/MANIFEST.yaml`.
 5. **License gate.** Before adding any dependency, dataset, or pretrained weight, record
    its license in `docs/DATA.md` (data/weights) or the PR description (code). AGPL,
@@ -47,7 +49,9 @@ Read next: `docs/ARCHITECTURE.md` → `docs/ROADMAP.md` → your task in `tasks/
 
 ## Environment (the 5090 workstation, Ubuntu)
 
-- Python 3.11 via `uv` (`uv venv && uv pip install -e ".[dev,perception]"`).
+- Python 3.11 via `uv` (pinned in `.python-version`): `uv venv && uv pip install -e ".[dev,perception]"`.
+  GPU tasks add the shared `torch` extra (cu128 wheels, configured in `pyproject.toml`):
+  `uv pip install -e ".[dev,perception,torch]"`. Don't install torch any other way.
 - NVIDIA driver: use the version listed as validated on the Isaac Sim requirements
   page for the installed Isaac Sim release; Blackwell (sm_120) + Isaac Sim is
   driver-sensitive. Don't upgrade the driver without checking.
@@ -72,6 +76,8 @@ Read next: `docs/ARCHITECTURE.md` → `docs/ROADMAP.md` → your task in `tasks/
 ```
 src/scs/
   contracts.py        # shared schemas (frozen)
+  bus.py              # Redis Streams helper + in-memory fake
+  geometry.py         # polygon/zone helpers (T04 and T05 must use these)
   ingest/             # T02  RTSP/file/sim sources → frames
   perception/         # T03  detector + tracker; T04 pose
   behavior/           # T06  behavior models → BehaviorScore
@@ -85,7 +91,7 @@ eval/                 # T09  dataset loaders, metrics, suites, reports
 configs/              # camera profiles, example site
 docs/                 # architecture, roadmap, data registry, eval spec, ADRs
 tasks/                # one brief per workstream
-legacy (root *.py)    # the Sept-2025 PoC — reference only, do not extend
+legacy/               # the Sept-2025 PoC — reference only, do not extend or import
 ```
 
 ## Definition of done (every task)

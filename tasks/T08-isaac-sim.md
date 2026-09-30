@@ -1,6 +1,6 @@
 # T08 — Isaac Sim synthetic convenience store
 
-**Wave 1 (long-running) · owned:** `sim/`
+**Wave 1 (long-running) · owned:** `sim/` · **depends on:** T00, T02 (`DirectorySource`), T07 (profiles)
 
 ## Goal
 Generate labeled multi-camera video + ground truth (boxes, 2D/3D skeletons, journeys, theft subtype) across camera profiles and mount heights, to (a) pretrain/augment T06 and (b) compare camera placements.

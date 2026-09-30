@@ -22,7 +22,7 @@ Converters output the canonical format below (T09 owns).
 |---|---|---|---|---|---|---|
 | `poselift` | Real US store, 6 ceiling cams, 1080p 15 fps | 155 clips, ~1.06 h, 43 theft events | Pose only (COCO17, HRNet), boxes, IDs | Repo is Apache-2.0; confirm it covers the data | R&D → prod once confirmed | Closest public match to our task; STG-NF baseline AUC-ROC 67.5 |
 | `retails` | Live US store, 10 days, 6 cams | ~20M normal frames, 898 staged + 53 real thefts | Pose only | **None stated**; email authors (nrashvan@charlotte.edu) | R&D (blocked for prod) | Scale; real-vs-staged split shows the domain gap (STG-NF 87.2 staged → 63.2 real AUC) |
-| `meva` | 38 RGB+IR cams, indoor/outdoor | 9,300 h collected, 144 h annotated, 37 activities incl. picks_up, puts_down, transfers, **steals_object** | Video + boxes | CC-BY-4.0 | prod | Detector/tracker/pose domain adaptation to CCTV; object-interaction pretraining |
+| `meva` | 38 RGB+IR cams, indoor/outdoor | 9,300 h collected, 144 h annotated, 37 activities incl. picks_up, puts_down, transfers, **steals_object** | Video + boxes (no keypoint labels) | CC-BY-4.0 | prod | Detector/tracker domain adaptation to CCTV; object-interaction pretraining |
 | `merl_shopping` | Overhead cam, mock grocery | 106 × ~2 min | Video; reach/retract/hand-in-shelf/inspect labels | **Check MERL license page** | R&D until checked | Shelf-interaction detector (hand-in-shelf) from an overhead view |
 | `ucf_crime` | Surveillance clips incl. "Shoplifting" | ~50 shoplifting videos | Video, weak labels | Research use | R&D (eval only) | Hard negatives/positives for VLM verifier eval |
 | `coco_kp` | COCO keypoints | 250k people | Images | Annotations CC-BY-4.0; images various Flickr licenses | prod (weights) | Pose pretraining standard |
@@ -32,6 +32,7 @@ Converters output the canonical format below (T09 owns).
 
 | id | What | Status | Owner |
 |---|---|---|---|
+| `quick_capture` | 30 min, one Reolink at ~2.7 m, simultaneous main + sub streams, 2 actors, staged pick/return/conceal + benign matched pairs, take log (ROADMAP H1a) | **To record, week 1** | Abdul / Ishan |
 | `lab_mock_aisle` | Staged footage in a mock c-store aisle (shelf, candy rack, counter, door) with 2–4 Reolinks at 2.4–3.0 m, main + sub streams recorded | **To record, week 1–3** (human task H1) | Abdul / Ishan |
 | `sim_store_v*` | Isaac Sim synthetic clips across camera profiles | T08 | agent |
 | `emu_*` | Camera-emulated variants of the above | T07 | agent |
