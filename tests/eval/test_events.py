@@ -186,3 +186,17 @@ def test_bootstrap_ci_is_clip_level_and_deterministic():
     # binomial-ish spread over 10 clips: a wide interval that contains 0.7
     assert lo < 0.7 < hi and hi - lo > 0.3
     assert np.isfinite([lo, hi]).all()
+
+
+def test_alert_on_ignore_region_does_not_steal_nearby_positive():
+    # Found on real MEVA: a prediction exactly on a not_good (ignore) annotation used the
+    # 2-s tolerance to grab the next positive, cascading into a duplicate.
+    gts = [G("u", 257.13, 257.77, role="ignore"), G("u", 259.6, 260.27), G("u", 260.3, 261.07)]
+    preds = [P("u", 257.13, 257.77, 0.9), P("u", 259.6, 260.27, 0.9), P("u", 260.3, 261.07, 0.9)]
+    r = match(gts, preds, tol=2.0, unit_hours={"u": 1})
+    assert r.outcome == ["ignored", "tp", "tp"]
+
+
+def test_tolerance_still_matches_when_nothing_intersects():
+    r = match([G("u", 10, 11), G("u", 30, 31, role="ignore")], [P("u", 12, 12.5, 0.9)], tol=2.0)
+    assert r.outcome == ["tp"]

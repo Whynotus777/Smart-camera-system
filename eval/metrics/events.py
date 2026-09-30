@@ -9,9 +9,11 @@ Definitions (docs/EVAL.md "Primary"; hand-worked examples in tests/eval/test_eve
   penalizes). Predictions that overlap only ignore regions are neither true nor false.
 - Overlap: `pred.t_start <= gt.t_end + tol` and `pred.t_end >= gt.t_start - tol`.
 - One-to-one, greedy by score (COCO-style): predictions are processed by descending
-  score (ties: earlier t_start, then input order). Each prediction takes the
-  still-unmatched overlapping positive with the highest temporal IoU. So one long
-  alert can't claim every event it touches.
+  score (ties: earlier t_start, then input order). Each prediction goes to its best
+  candidate: GT that truly intersects it beats GT reached only through `tol`; within a
+  tier, an unmatched positive beats an ignore region beats an already-matched positive,
+  then highest temporal IoU. So one long alert can't claim every event it touches, and
+  an alert sitting on an ignore region can't steal a neighbouring positive via `tol`.
 - Outcomes: `tp` (matched a positive) · `duplicate` (overlaps positives, all already
   matched: review burden, not a false accusation) · `ignored` (overlaps only ignore
   regions) · `false` (overlaps nothing labeled).
@@ -107,16 +109,23 @@ def match(
         if p.t_end < p.t_start:
             raise ValueError(f"prediction with t_end < t_start: {p}")
         cands = [i for i in by_unit.get(p.unit, ()) if _overlaps(p, gts[i], tol)]
-        pos = [i for i in cands if gts[i].role == "positive"]
-        free = [i for i in pos if i not in taken]
-        if free:
-            best = max(free, key=lambda i: (_tiou(p, gts[i]), -gts[i].t_start, -i))
-            taken.add(best)
-            res, m = "tp", best
-        elif pos:
-            res, m = "duplicate", -1
-        elif cands:
-            res, m = "ignored", -1
+        if cands:
+            # Tier 1: GT that truly intersects the prediction beats tolerance-only overlap.
+            # Within a tier: free positive > ignore region > already-matched positive, then tIoU.
+            def rank(i: int, p: Pred = p) -> tuple:
+                g = gts[i]
+                kind = 2 if (g.role == "positive" and i not in taken) else (1 if g.role != "positive" else 0)
+                inter = min(p.t_end, g.t_end) >= max(p.t_start, g.t_start)
+                return (inter, kind, _tiou(p, g), -g.t_start, -i)
+
+            best = max(cands, key=rank)
+            if gts[best].role != "positive":
+                res, m = "ignored", -1
+            elif best in taken:
+                res, m = "duplicate", -1
+            else:
+                taken.add(best)
+                res, m = "tp", best
         else:
             res, m = "false", -1
         out_preds.append(p)
