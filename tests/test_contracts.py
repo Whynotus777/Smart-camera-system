@@ -75,3 +75,10 @@ def test_json_roundtrip():
 def test_extra_fields_forbidden():
     with pytest.raises(ValidationError):
         Event(type=EventType.STORE_EXIT, camera_id="c", ts=1, source="s", surprise=1)
+
+
+def test_frame_ref_defaults_to_main_stream_with_optional_mono():
+    ref = FrameRef(camera_id="c", frame_idx=0, ts=1.0, width=2560, height=1440)
+    assert ref.stream == "main"
+    assert ref.ts_mono is None
+    assert FrameRef(camera_id="c", frame_idx=0, ts=1.0, width=2560, height=1440, ts_mono=3.5).ts_mono == 3.5

@@ -8,7 +8,8 @@ from pydantic import BaseModel
 import scs.contracts as C
 from scs.bus import DEFAULT_MAXLEN, InMemoryBus, RedisBus, decode, encode
 
-FRAME = C.FrameRef(camera_id="cam1", frame_idx=3, ts=1.5, width=2560, height=1440, stream="main")
+FRAME = C.FrameRef(camera_id="cam1", frame_idx=3, ts=1.5, width=2560, height=1440, stream="sub",
+                   ts_mono=812.25)
 PROFILE = C.CameraProfile(
     id="p", vendor="v", model="m",
     main_stream=C.StreamSpec(width=2560, height=1440, fps=15, codec="h265", bitrate_kbps=6144),

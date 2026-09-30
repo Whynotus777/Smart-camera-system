@@ -13,7 +13,7 @@ jobs:
         with: {python-version: "3.11"}
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
-      - run: mypy src/scs/contracts.py src/scs/bus.py src/scs/*/base.py
+      - run: mypy src/scs/contracts.py src/scs/bus.py src/scs/geometry.py src/scs/*/base.py
       - run: pytest -m "not gpu and not data and not slow"
       - name: secret scan
         uses: gitleaks/gitleaks-action@v2

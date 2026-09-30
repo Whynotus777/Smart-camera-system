@@ -5,10 +5,16 @@ optional fields; renaming/removing fields or changing semantics requires an
 ADR in docs/adr/ and a bump of CONTRACTS_VERSION.
 
 Conventions
-- Timestamps: float seconds since Unix epoch (UTC), taken at frame decode.
-- Pixel coordinates: absolute pixels in the frame the stage received, origin top-left.
-- Zone polygons: NORMALIZED [0,1] coordinates so they survive resolution changes.
-- Keypoints: COCO-17 order, (x, y, confidence) in pixels.
+- Timestamps: `FrameRef.ts` is float seconds since Unix epoch (UTC), wall clock at
+  frame decode. `FrameRef.ts_mono` (optional) is the decoding host's monotonic clock
+  at the same instant; use it for intervals and drift, never across hosts/reboots.
+- Pixel coordinates: absolute pixels in the camera's MAIN-stream, full-resolution
+  frame, origin top-left (ADR 0002). Stages that run on a resized or sub-stream image
+  (e.g. a 640 px detector input) map their outputs back to that frame before
+  emitting them. `FrameRef.width/height` are the main-stream dimensions.
+- Zone polygons: NORMALIZED [0,1] coordinates so they survive resolution changes
+  (helpers in `scs.geometry`).
+- Keypoints: COCO-17 order, (x, y, confidence), in the same main-stream pixels.
 """
 
 from __future__ import annotations
@@ -21,7 +27,7 @@ from typing import Annotated, Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-CONTRACTS_VERSION = "0.1.0"
+CONTRACTS_VERSION = "0.2.0"
 
 COCO17_KEYPOINTS: tuple[str, ...] = (
     "nose", "left_eye", "right_eye", "left_ear", "right_ear",
@@ -134,10 +140,11 @@ def _check_bbox(b: BBox) -> BBox:
 class FrameRef(_Model):
     camera_id: str
     frame_idx: int = Field(ge=0)
-    ts: float
-    width: int = Field(gt=0)
+    ts: float  # epoch seconds, wall clock at decode
+    width: int = Field(gt=0)  # main-stream frame size (see module Conventions)
     height: int = Field(gt=0)
-    stream: Literal["main", "sub"] = "sub"
+    stream: Literal["main", "sub"] = "main"  # stream actually decoded; coords are always main-stream
+    ts_mono: float | None = None  # host monotonic clock at decode (time.monotonic())
 
 
 class Detection(_Model):
