@@ -102,6 +102,7 @@ stack on top of this branch and running every non-slow test (2026-09-30):
 | R10 | Live clip boundaries map stream time to wall clock at first frame (± decode latency, < 0.5 s). The 15 s / 10 s windows absorb it. | T10 | The real ring buffer uses per-packet timestamps from T02's packet tap. |
 | R11 | Reconnect after a camera drop takes 5–6.5 s (backoff cap 5 s). | T02 | T02 owns reconnect and HEALTH events. |
 | R12 | One SQLite writer shared by all roles: fine for 1 camera, unmeasured at 10. | T12 | Include in the 10-stream soak. |
+| R13 | **The dev box's disk is a shared, unscheduled resource.** On 2026-09-30, parallel torch/TensorRT installs into per-worktree venvs plus the MEVA fetch drove load average to 57, with processes blocked on I/O. `scripts/gpu` serializes the GPU, not the disk, so timing, soak and latency numbers taken meanwhile are contaminated. | owner / T12 | Share one venv/wheel cache across worktrees, or pin `UV_CACHE_DIR`; take perf/soak numbers only when the disk is quiet, and record `iostat` next to `nvidia-smi`. |
 
 ## Blocking M2
 
