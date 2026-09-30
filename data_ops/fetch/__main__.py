@@ -24,6 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--dry-run", action="store_true")
     p = sub.add_parser("poselift", help="PoseLift pose data from its public Google Drive folder")
     p.add_argument("--from-dir", type=Path, default=None, help="ingest an existing download instead")
+    p.add_argument("--retry-every-h", type=float, default=None, help="keep retrying until complete")
     sub.add_parser("simuletic_sample", help="DROPPED (owner decision): CC BY-NC-SA 4.0, lineage risk")
     pr = sub.add_parser("probe", help="backfill per-file video properties into a dataset manifest")
     pr.add_argument("id")
@@ -39,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
         return coco_kp.fetch(jobs=a.jobs, dry_run=a.dry_run)
     if a.dataset == "poselift":
         from data_ops.fetch import poselift
-        return poselift.fetch(src=a.from_dir)
+        return poselift.fetch(src=a.from_dir, retry_every_h=a.retry_every_h)
     if a.dataset == "simuletic_sample":
         print("simuletic_sample is dropped (owner decision 2026-09-29): CC BY-NC-SA 4.0 = non-commercial + "
               "share-alike, lineage risk for anything trained on it. See docs/DATA.md.", file=sys.stderr)
