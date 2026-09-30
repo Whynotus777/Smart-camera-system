@@ -25,6 +25,7 @@ import numpy as np
 from scs.app import config as cfgmod
 from scs.app.crash import crashpoint
 from scs.app.evidence import EvidenceStore, FileLoopEvidence, SegmentEvidence, build_master, clean_temp
+from scs.app.pipeline import M1Pipeline
 from scs.app.source import (
     FileLoopSource,
     LiveSource,
@@ -35,7 +36,7 @@ from scs.app.source import (
     probe,
 )
 from scs.app.store import Checkpoint, Store
-from scs.app.stubs import BackgroundDiffDetector, DwellEngine, IouTracker
+from scs.app.stubs import BackgroundDiffDetector, DwellEngine
 from scs.contracts import Alert, Event, FrameRef
 
 
@@ -106,44 +107,41 @@ def _background(workdir: Path, cfg: cfgmod.AppConfig, info: VideoInfo) -> np.nda
 
 def _ingest_file(cfg: cfgmod.AppConfig, store: Store, workdir: Path, stop_after: int | None) -> None:
     info = file_info(workdir, cfg.source)
-    detector = BackgroundDiffDetector(_background(workdir, cfg, info))
-    tracker = IouTracker()
     engine = DwellEngine(cfg.site_id, cfg.zone, cfg.min_dwell_s, cfg.cooldown_s)
     cp = store.load_checkpoint(cfg.camera_id)
+    pipe = M1Pipeline(
+        BackgroundDiffDetector(_background(workdir, cfg, info)),
+        engine,
+        last_epoch=None if cp is None else cp.epoch,
+    )
     if cp is None:
         origin, start = time.time(), 0
     else:
         origin, start = cp.state["origin_ts"], cp.media_frame + 1
-        tracker.restore(cp.state["tracker"])
-        engine.restore(cp.state["engine"])
+        pipe.restore(cp.state)
     log("ingest", f"file source {cfg.source} from media frame {start} ({info.n_frames} frames/loop)")
     src = FileLoopSource(
         cfg.camera_id, cfg.source, info, cfg.analytics_width, origin, start, cfg.speed, cfg.loop
     )
-    commit_every = max(1, round(info.fps / 2))  # checkpoint twice per media second
-    _pipeline(
+    _run(
         cfg,
         store,
         src.frames(),
-        detector,
-        tracker,
-        engine,
-        commit_every,
-        stop_after,
+        pipe,
+        max(1, round(info.fps / 2)),
+        stop_after,  # checkpoint 2x per media s
         extra_state={"origin_ts": origin},
         position=lambda r: r.epoch * info.n_frames + r.seq,
-        last_epoch=None if cp is None else cp.epoch,
     )
 
 
 def _ingest_live(cfg: cfgmod.AppConfig, store: Store, workdir: Path, stop_after: int | None) -> None:
-    detector = BackgroundDiffDetector(None)
-    tracker = IouTracker()
     engine = DwellEngine(cfg.site_id, cfg.zone, cfg.min_dwell_s, cfg.cooldown_s)
     cp = store.load_checkpoint(cfg.camera_id)
     if cp is not None:
         engine.restore(cp.state["engine"])
         engine.reset_transient()  # the process was down: whatever dwell was running is broken
+    pipe = M1Pipeline(BackgroundDiffDetector(None), engine, learn_background=True)
     seg_root = workdir / "segments"
     recover_segments(store, seg_root, cfg.camera_id)
 
@@ -160,78 +158,46 @@ def _ingest_live(cfg: cfgmod.AppConfig, store: Store, workdir: Path, stop_after:
         on_segments=on_segments,
     )
     log("ingest", f"live source {cfg.camera_id} from ${cfg.source[4:]} (url not logged)")
-
-    def frames() -> Iterator[tuple]:
-        warm: list[np.ndarray] = []
-        epoch = None
-        for ref, img in src.frames():
-            if ref.epoch != epoch:  # new connection: relearn the background
-                epoch, warm = ref.epoch, []
-                detector.background = None
-            if detector.background is None:
-                warm.append(img)
-                if len(warm) >= 40:
-                    detector.background = np.median(np.stack(warm), axis=0).astype(np.uint8)
-            yield ref, img
-
-    _pipeline(
+    _run(
         cfg,
         store,
-        frames(),
-        detector,
-        tracker,
-        engine,
+        src.frames(),
+        pipe,
         commit_every=10,
         stop_after=stop_after,
         extra_state={},
         position=lambda r: r.seq,
-        last_epoch=None,
     )
 
 
-def _pipeline(
+def _run(
     cfg: cfgmod.AppConfig,
     store: Store,
-    frames: Iterator[tuple],
-    detector: BackgroundDiffDetector,
-    tracker: IouTracker,
-    engine: DwellEngine,
+    frames: Iterator[tuple[FrameRef, np.ndarray]],
+    pipe: M1Pipeline,
     commit_every: int,
     stop_after: int | None,
     extra_state: dict,
     position: Callable[[FrameRef], int],
-    last_epoch: int | None,
 ) -> None:
-    """Run frames through detector → tracker → engine; commit per checkpoint (module docstring).
+    """Feed frames to the streaming pipeline; commit its output per checkpoint (module docstring).
 
     `position(ref)` is what the checkpoint stores (file sources resume at position + 1).
-    A new epoch (reconnect, or a file loop) is a discontinuity: tracks and any running dwell
-    are reset, the per-zone cooldown is kept.
     """
     events: list[Event] = []
     alerts: list[Alert] = []
     windows: dict[str, tuple[float, float]] = {}
     n = 0
     for ref, img in frames:
-        if last_epoch is not None and ref.epoch != last_epoch:
-            tracker.__init__()  # type: ignore[misc]
-            engine.reset_transient()
-        last_epoch = ref.epoch
-        dets = detector.detect([(ref, img)])[0]
-        for t in tracker.update(dets, None):
-            events += engine.on_track(t)
-        for a in engine.poll_alerts(ref.ts):
-            alerts.append(a)
-            windows[a.alert_id] = (a.ts_open - cfg.pre_roll_s, a.ts_open + cfg.post_roll_s)
+        for item in pipe.process(ref, img):
+            if isinstance(item, Alert):
+                alerts.append(item)
+                windows[item.alert_id] = (item.ts_open - cfg.pre_roll_s, item.ts_open + cfg.post_roll_s)
+            else:
+                events.append(item)
         n += 1
-        if events or n % commit_every == 0:
-            cp = Checkpoint(
-                cfg.camera_id,
-                ref.epoch,
-                position(ref),
-                ref.ts,
-                {**extra_state, "tracker": tracker.state(), "engine": engine.state()},
-            )
+        if events or alerts or n % commit_every == 0:
+            cp = Checkpoint(cfg.camera_id, ref.epoch, position(ref), ref.ts, {**extra_state, **pipe.state()})
             kind = ".event" if events else ""  # commits that carry events are the rare, risky ones
             crashpoint(f"ingest.before_commit{kind}")
             new = store.commit_frames(cp, events, alerts, windows)

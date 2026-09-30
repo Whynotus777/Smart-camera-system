@@ -304,6 +304,36 @@ def _event_key(st: Store, eid: str) -> dict:
     }
 
 
+DATA_MD_CLIP_KEYS = {"clip_id", "camera_profile", "fps", "label_source", "events"}
+DATA_MD_EVENT_KEYS = {"type", "track_id", "t_start", "t_end", "actor_id", "visible", "label_source"}
+
+
+def label_schema_errors(lab: dict) -> list[str]:
+    """Validate one label file: T09's `eval.canonical.ClipLabels` when it's importable
+    (i.e. once T09 has merged: then this is the contract test), else DATA.md's minimum."""
+    try:
+        from eval.canonical import ClipLabels  # type: ignore[import-not-found]
+    except ImportError:
+        ClipLabels = None  # noqa: N806
+    if ClipLabels is not None:
+        try:
+            ClipLabels.model_validate(lab)
+        except Exception as e:  # noqa: BLE001
+            return [f"rejected by eval.canonical.ClipLabels: {e}"]
+        return []
+    errs = []
+    if not DATA_MD_CLIP_KEYS <= set(lab):
+        errs.append(f"missing DATA.md keys {DATA_MD_CLIP_KEYS - set(lab)}")
+    if not (isinstance(lab.get("fps"), int | float) and lab["fps"] > 0):
+        errs.append(f"fps {lab.get('fps')!r}")
+    for ev in lab.get("events", []):
+        if not DATA_MD_EVENT_KEYS <= set(ev):
+            errs.append(f"event missing {DATA_MD_EVENT_KEYS - set(ev)}")
+        if ev.get("visible") not in ("observed", "partially_observed", "not_observed"):
+            errs.append(f"visible must be a scalar for this camera, got {ev.get('visible')!r}")
+    return errs
+
+
 def check_invariants(
     workdir: Path,
     acked: dict[str, str] | None,
@@ -400,17 +430,15 @@ def check_invariants(
         if set(labels) != set(reviews):
             err(f"labels != reviews: {set(labels) ^ set(reviews)}")
         for aid, lab in labels.items():
-            if set(lab) != {"clip_id", "camera_profile", "fps", "label_source", "events"}:
-                err(f"label {aid} keys {sorted(lab)}")
+            for e in label_schema_errors(lab):
+                err(f"label {aid}: {e}")
             if lab["label_source"] != "human" or lab["clip_id"] != aid:
                 err(f"label {aid} header wrong")
             if bool(lab["events"]) != (reviews.get(aid) == "confirmed"):
                 err(f"label {aid} events don't match decision {reviews.get(aid)}")
+            if lab.get("extra", {}).get("review", {}).get("decision") != reviews.get(aid):
+                err(f"label {aid} extra.review.decision != stored decision")
             for ev in lab["events"]:
-                if not {"type", "track_id", "t_start", "t_end", "actor_id", "visible", "label_source"} <= set(
-                    ev
-                ):
-                    err(f"label {aid} event missing fields: {ev}")
                 if not 0 <= ev["t_start"] <= ev["t_end"]:
                     err(f"label {aid} event times {ev['t_start']}..{ev['t_end']}")
     finally:

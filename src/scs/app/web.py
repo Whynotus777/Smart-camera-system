@@ -34,7 +34,7 @@ from typing import Any
 from scs.app import config as cfgmod
 from scs.app.crash import crashpoint
 from scs.app.labels import export_labels
-from scs.app.roles import clip_dir, db_path, file_info, log, role_lock
+from scs.app.roles import clip_dir, db_path, log, role_lock
 from scs.app.store import DECISIONS, ReviewConflict, Store
 
 REVIEW_RE = re.compile(r"^/api/alerts/([0-9a-f]{32})/review$")
@@ -47,7 +47,6 @@ class App:
         self.cfg = cfgmod.load(workdir)
         self.store = Store(db_path(workdir))
         self.lock = threading.Lock()  # one sqlite connection, serialized across request threads
-        self.fps = None if self.cfg.is_live else file_info(workdir, self.cfg.source).fps
 
     def export(self, only: str | None = None) -> list[Path]:
         return export_labels(
@@ -55,7 +54,6 @@ class App:
             self.workdir / "labels",
             self.cfg.label_dataset_id,
             self.cfg.camera_profile,
-            self.fps,
             only,
         )
 
