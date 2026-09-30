@@ -119,6 +119,23 @@ def test_batch_larger_than_engine_max(detector):
     assert len(detector.detect(batch)) == len(batch)
 
 
+def test_integration_detect_track_fixture(detector):
+    """Recorded fixture → detector → both trackers; tracks keep frame identity and stay in-frame."""
+    from scs.perception.track_botsort import AppearanceTracker
+    from scs.perception.track_bytetrack import ByteTracker
+
+    frames = _fixture_frames(40, step=2)
+    for trk in (ByteTracker(), AppearanceTracker()):
+        ids, n = set(), 0
+        for i, f in enumerate(frames):
+            ref = _ref("demo", i)
+            dets = detector.detect([(ref, f)])[0]
+            for t in trk.update(dets, f):
+                assert t.frame.identity == ref.identity
+                assert 0 <= t.bbox[0] < t.bbox[2] <= 640 and 0 <= t.bbox[1] < t.bbox[3] <= 360
+                ids.add(t.track_id)
+                n += 1
+        assert n > 0 and len(ids) < n
 
 
 @pytest.mark.slow
