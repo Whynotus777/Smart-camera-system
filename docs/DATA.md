@@ -32,15 +32,29 @@ Converters output the canonical format below (T09 owns).
 
 | id | What | Size | Modality | License | Use | Why we want it |
 |---|---|---|---|---|---|---|
-| `poselift` | Real US store, 6 ceiling cams, 1080p 15 fps | 155 clips, ~1.06 h, 43 theft events | Pose only (COCO17 via HRNet, interpolated + 8-frame smoothed), boxes, IDs, frame-level labels | Repo is Apache-2.0; confirm it covers the data | R&D → prod once confirmed | One benchmark for pose-sequence models. It does **not** validate our decoding, detector, or pose accuracy. Match its normalization, fps, confidence handling, and smoothing before comparing numbers. |
+| `poselift` | Real US store, 6 ceiling cams, 1080p 15 fps | 155 clips, ~1.06 h, 43 theft events | Pose only (COCO17 via HRNet, interpolated + 8-frame smoothed), boxes, IDs, frame-level labels | Repo is Apache-2.0, but the data is hosted separately on Google Drive (linked from the README) with no license file of its own seen so far (T14, 2026-09-29); confirm with the authors that Apache-2.0 covers it | R&D → prod once confirmed | One benchmark for pose-sequence models. It does **not** validate our decoding, detector, or pose accuracy. Match its normalization, fps, confidence handling, and smoothing before comparing numbers. |
 | `retails` | Live US store, 10 days, 6 cams | ~20M normal frames, 898 staged + 53 real thefts | Pose only | **None stated = not licensed**; emailing authors (nrashvan@charlotte.edu) | **pending**: don't use until authors grant permission | Scale; real-vs-staged split shows the domain gap (STG-NF 87.2 staged → 63.2 real AUC) |
 | `meva` | Real multi-camera surveillance, 38 RGB+IR cams, indoor/outdoor, scripted actors | **328 h / 516 GB public on AWS** (`aws s3 ls --no-sign-request s3://mevadata-public-01/`); activity annotations from the MEVA data repo (Kitware); 37 activities incl. `person_picks_up_object`, `person_puts_down_object`, `person_transfers_object`, **`person_steals_object`** | Video + boxes + activity spans (no keypoints) | CC-BY-4.0 ([license](http://mevadata.org/resources/MEVA-data-license.txt)), attribution required | prod | **Free real test proxy** (object-interaction events), continuous indoor footage for false-alerts-per-hour, self-supervised domain adaptation, fake-camera replay |
-| `smartspaces` | NVIDIA PhysicalAI-SmartSpaces (AI City Challenge 2024/2025 MTMC), synthetic Isaac Sim scenes incl. **retail**, warehouse, hospital | 250 h, ~1,500 cams, 1080p30 H.264, 6.7 TB total: **download retail scenes only** | Video + time-synced 2D/3D boxes, global IDs | CC-BY-4.0 | prod | Overhead retail person detection, tracking, cross-camera association; reference for T08 scene/pipeline |
-| `simuletic_sample` | Synthetic overhead retail shoplifting (free Kaggle sample of a paid set) | 8 videos, 400 images | Video + boxes + 17-kp pose + captions | Kaggle sample terms; paid set is **not** approved (zero-spend) | R&D eval only | Sanity check for the behavior model on theft-like synthetic clips |
+| `smartspaces` | NVIDIA PhysicalAI-SmartSpaces (AI City Challenge 2024/2025 MTMC), synthetic Isaac Sim scenes incl. **retail**, warehouse, hospital | 250 h, ~1,500 cams, 1080p30 H.264, 6.7 TB total: **download retail scenes only**. Retail = `MTMC_Tracking_2024/test/scene_071`–`080` only (README + visual check by T14: 001–070 warehouse, 081–090 hospital; 072 is the storage room). 160 camera videos, 34.3 GB without depth maps; ground truth published | Video + time-synced 2D/3D boxes, global IDs | CC-BY-4.0 | prod | Overhead retail person detection, tracking, cross-camera association; reference for T08 scene/pipeline |
+| `simuletic_sample` | Synthetic overhead retail shoplifting (free Kaggle sample of a paid set) | 8 videos, 400 images | Video + boxes + 17-kp pose + captions | **CC BY-NC-SA 4.0** (verified via Kaggle API, 2026-09-29): non-commercial + share-alike. Paid set **not** approved (zero-spend). Download needs a Kaggle account token | **blocked** until the owner OKs NC-SA use for eval (then R&D eval only, `[license-risk]`) | Sanity check for the behavior model on theft-like synthetic clips |
 | `merl_shopping` | Overhead cam, mock grocery | 106 × ~2 min | Video; reach/retract/hand-in-shelf/inspect labels | **Check MERL license page** | R&D until checked | Shelf-interaction detector (hand-in-shelf) from an overhead view |
 | `ucf_crime` | Surveillance clips incl. "Shoplifting" | ~50 shoplifting videos | Video, weak labels | Research use | R&D (eval only) | Hard negatives/positives for VLM verifier eval |
 | `coco_kp` | COCO keypoints | 250k people | Images | Annotations CC-BY-4.0; images various Flickr licenses | prod (weights) | Pose pretraining standard |
 | `ntu_rgbd` | 120 actions, lab | 114k clips | Video/skeleton | **Non-commercial** | R&D only; never ship weights trained on it | Skeleton action pretraining experiments |
+
+### Local copies (T14 data factory)
+
+Fetched with `python -m data_ops.fetch <id>` into the shared data root (`data_ops/paths.py`:
+`$SCS_DATA_ROOT`, else the main checkout's `data/`, which every worktree shares). Each
+`data/<id>/MANIFEST.json` lists every file with bytes, sha256, source URL, source checksum and
+how it was verified. Attribution text for CC-BY sources is in each manifest.
+
+| id | Command | What's local |
+|---|---|---|
+| `meva` | `fetch meva --indoor --max-gb 150` | 10 indoor cameras (G326, G329, G331, G508, G299, G330, G419, G420, G421, G423): all 919 clips with Kitware activity annotations + 477 unannotated continuous clips; 1,396 × 5 min ≈ 116 h, 150 GB; S3 ETag (MD5) verified. Annotations: meva-data-repo @ `421841a` (sets `kitware`, `kitware-meva-training`). Only **5** `person_steals_object` events exist in all of MEVA (all indoor). |
+| `smartspaces` | `fetch smartspaces` | Retail scenes 071–080, 350 files, 34.3 GB, sha256 verified against HF LFS. |
+| `coco_kp` | `fetch coco_kp` | val2017 images + `person_keypoints_val2017.json` (1.07 GB); size-verified (COCO publishes no checksums). |
+| `poselift` | `fetch poselift` | Google Drive folder via `gdown`; sha256 recorded (Drive publishes none). |
 
 Approval status per item lives in this table and covers code, data, weights, and assets
 separately. Only `prod` and approved `R&D` items may feed models whose lineage could
