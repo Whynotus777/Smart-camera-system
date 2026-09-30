@@ -13,14 +13,30 @@ Data types referenced below live in `src/scs/contracts.py`.
   and rich, not to be perfect.
 - Operational analytics (dwell, queue length, empty-shelf, spills) reuse the same
   tracks/zones and are lower-risk upsells. Keep the event engine generic enough.
+- The system reports **observable interactions worth reviewing** (item to bag, item
+  concealed under clothing, obscured interaction, exit without checkout). It never
+  asserts "theft"; that's the reviewer's and the store's call. UI copy, alert reason
+  codes, and labels follow this.
+
+## 1b. Two tracks, one product
+
+| Track | Purpose | Success = |
+|---|---|---|
+| **Release** (T02, T10, T12, T13) | Cameras → persisted events → playable clips → review → recorded outcome, surviving restarts and failures, installable on the store box. | Milestone M1/M2 in ROADMAP pass on target hardware. |
+| **Model & data** (T03–T09, T11) | Better detection/tracking/pose/behavior; sim and emulation. | Improvement on the held-out **real** test set at the same false-alert budget. |
+
+The model track plugs into the release track through the interfaces below. It never
+blocks it: M1 runs with a trivial rule or an injected test event.
 
 ## 2. Pipeline
 
 ```
  RTSP main stream (per camera)
    │  T02 ingest: GStreamer/PyAV + NVDEC, reconnect, timestamps, health events
+   ├──► ENCODED packet tap ──► evidence ring buffer (T10, last 60 s). Never subject to
+   │                           analytics frame-dropping.
    ▼
- Frame (GPU)  ──► ring buffer (T10, last 60 s, for evidence clips)
+ Frame (GPU, analytics path; may drop oldest under load)
    │  GPU resize → detector input (≈640 px)
    ▼
  T03 Detector (person; later: hand/item)  →  Detection
@@ -53,12 +69,15 @@ that consumers can be restarted and recordings can be replayed.
 |---|---|---|---|
 | D1 | Decode **main stream only**, resize on GPU for detection; all boxes/keypoints are main-stream pixels (ADR 0002) | Sub-stream (640×360) puts a hand at ~6 px at 5 m; main (2560×1440) ≈ 25 px. One decode avoids syncing two streams with different timestamps. | NVDEC budget exceeded on edge target (T12 measures). |
 | D2 | **Journey logic, not gesture alarms** | Single-frame "concealing/looking around" rules fire on phones and chairs (see legacy demos). Theft = sequence across zones; exit-without-checkout is the strongest cheap signal. | — |
-| D3 | Behavior models run on **pose sequences** first | Public retail theft data (PoseLift, RetailS) is pose-only; pose is privacy-preserving and camera-agnostic; small models, fast to retrain per store. | If pose AUC plateaus, add clip-level video model on alert candidates only. |
+| D3 | **Pose is a baseline signal, not the only one.** T06 compares pose-only, visual (person/hand-region crops over time), and fused (visual + pose + track + zone). | Pose alone can't tell "phone out of own pocket" from "product into jacket"; the object and hand region carry that. Pose is still cheap, privacy-friendly, and has public data (PoseLift). | Decided by T06's comparison on the real held-out set. |
 | D4 | Zone-gated pose | Pose is the most expensive per-person stage; most people in a c-store at a given moment aren't at a shelf. | — |
 | D5 | Human review before store | Precision can't be guaranteed pre-deployment; reviewer labels become training data. | Measured precision after review sustained > target for 60 days. |
 | D6 | Models behind interfaces (`Detector`, `Tracker`, `PoseEstimator`, `BehaviorModel`, `Verifier`) | Several best-in-class options are AGPL / NC. We must be able to swap to permissive ones before customer deployment. | — |
 | D7 | Redis Streams over pub/sub | Pub/sub drops messages when a consumer is down; Streams give persistence, consumer groups, replay. | Multi-site fleet → consider MQTT to cloud. |
 | D8 | Python orchestration + TensorRT engines; DeepStream is optional | Faster for agents to build and test; batched TRT handles 10 cams on a 5090. DeepStream port is a CTO-phase optimization if the edge box needs it. | T12 shows edge target can't hit budget. |
+| D9 | **Micro-batching with a deadline**, not batch = number of cameras | A slow or dead camera must never delay healthy ones. Batch whatever frames are ready within ~20 ms, up to a max size. | T12 perf data. |
+| D10 | **Traceable frame identity**: `camera_id + epoch (connection id) + seq`, plus source (RTP) timestamp and the preprocessing transform | Proves a detector box and a high-res crop came from the same image; makes latency numbers honest (capture vs decode time). | — |
+| D11 | Crop retention for model development | So T06 can train visual/fused models later without re-ingesting: on gated tracks, optionally persist hand/person crops (lab and sim only by default; store only with consent). | Privacy review before store. |
 
 ## 4. Interfaces (each implemented by one task)
 

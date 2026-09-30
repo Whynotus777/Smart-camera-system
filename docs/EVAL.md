@@ -8,12 +8,16 @@ Output: `runs/eval/<git-sha>/<suite>.json` + `summary.md`.
 
 | Suite | Data | Purpose |
 |---|---|---|
-| `public_pose` | PoseLift test, RetailS staged + real test | Behavior-model comparability with published baselines |
+| `public_pose` | PoseLift test (RetailS only once licensed) | Pose-sequence model comparability with published baselines. Not a system-level validation. |
 | `sim_matrix` | `sim_store_v*` × all camera profiles × mount heights | Camera selection and robustness |
 | `emu_matrix` | `lab_mock_aisle` re-rendered through T07 per profile | Real-footage robustness to camera/codec/lighting |
 | `lab_e2e` | `lab_mock_aisle` held-out actors, full pipeline from video file | End-to-end system metric (the one that gates releases) |
 | `soak` | 24 h replay of normal-only footage at real time, 10 streams | Stability, false alerts per camera-hour, memory growth |
+| `sim_transfer` | Train on {real/mock only, sim only, real+sim}; test on the same untouched real test set | Decides whether sim data earns more investment |
 | `perf` | Synthetic 10-stream load | Throughput, latency, GPU/NVDEC utilization |
+| `meva_interaction` | MEVA indoor, held-out cameras/sites: `picks_up`, `puts_down`, `transfers`, `steals_object` events | **Free real-footage proxy** for event recall at the FA budget, through the full streaming pipeline |
+| `meva_fa` | ≥ 100 camera-hours of continuous MEVA indoor video | False alerts per camera-hour on real continuous footage (proxy until store shadow) |
+| `smartspaces_track` | SmartSpaces retail scenes (held-out scenes) | Detection mAP, IDF1, ID switches on overhead retail views |
 
 ## Metrics
 
@@ -37,14 +41,26 @@ Output: `runs/eval/<git-sha>/<suite>.json` + `summary.md`.
 
 | Gate | When | Must show |
 |---|---|---|
-| **G1 — public + sim** | End of Wave 2 | Behavior model ≥ STG-NF baseline on `public_pose`; `sim_matrix` report exists with ≥ 3 profiles × 2 heights; pipeline runs 10 streams from files on the 5090 for 1 h with 0 crashes. |
+| **G1 — free data** | End of Wave 2 | `meva_interaction` recall + CI at the FA budget measured on `meva_fa`; `smartspaces_track` IDF1 reported; behavior model ≥ STG-NF on `public_pose`; `sim_transfer` result for sim v0; 10 MEVA replay streams for 24 h with 0 crashes. All labeled "proxy, not retail". |
 | **G2 — lab** | After `lab_mock_aisle` recorded | `lab_e2e` recall ≥ 0.6 at the FA budget on held-out actors; soak 24 h clean; camera recommendation written from `emu_matrix` + `sim_matrix`. |
-| **G3 — store shadow** | In store, 2+ weeks | Alerts reviewed but NOT sent; measured FA/day and recall on known incidents; go/no-go for live alerts. |
+| **G3 — store shadow** | In store, 2+ weeks | Alerts reviewed but NOT sent. Reviewers also check a random sample of **non-alerted** footage to estimate misses. Measured FA/day, recall on known incidents, review minutes/day. Acceptable review burden agreed with the operator **before** enabling live notifications. |
 
 Numbers in G2 are starting targets. Adjust by ADR with evidence, not by vibe.
 
 ## Rules
 
 - Splits are by **actor and clip**, never by frame. Held-out actors never appear in training.
-- No threshold tuning on the test split. Calibrate on val and freeze.
+  All derivatives of a clip (crops, overlapping windows, emulated variants, augmentations)
+  share a `group_id` and stay in one split.
+- No threshold tuning on the test split. Calibrate on val and freeze. Site-specific
+  calibration is reported separately from generalization results.
+- **False alerts per hour are measured on continuous footage only**, never on curated clip sets.
+- **End-to-end suites run the deployed streaming path** (sampling, causal smoothing, track
+  resets, dedupe, alert suppression) from video files, not saved model scores.
+- Report sample counts and 95% confidence intervals (bootstrap over clips/actors) for
+  every headline metric. With few events, say so.
+- Only report metrics the labels support; otherwise "unavailable".
+- Positives for detection metrics are events labeled `visible: observed` for that camera.
 - Every report records: git sha, model ids, dataset versions, camera profiles, GPU, driver.
+- Sim/emulator results never count as production validation on their own. Only the real
+  held-out set and store shadow mode do.
