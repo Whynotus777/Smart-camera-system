@@ -26,6 +26,7 @@ def fake(monkeypatch, tmp_path):
     monkeypatch.setattr(farm.os, "killpg", lambda pid, sig: calls.append(("killpg", sig)))
     monkeypatch.setattr(farm, "server_kill", lambda: calls.append(("server", "kill")))
     monkeypatch.setattr(farm, "server_start", lambda: calls.append(("server", "start")))
+    monkeypatch.setattr(farm, "wait_ready", lambda timeout_s=0: True)
     pubs = [farm.Publisher(cam=f"cam0{i}", codec=c, files={"normal": Path("n"), "spike": Path("s")})
             for c in ("h264", "h265") for i in (1, 2)]
     fm = farm.Farm(pubs=pubs, run_dir=tmp_path, t0=0.0, log=lambda *_: None)
@@ -89,6 +90,22 @@ def test_spike_switches_variant_and_back(fake):
     assert fm.pubs[1].variant == "normal"
 
 
+def test_crashing_publisher_backs_off_exponentially(fake):
+    fm, _ = fake
+    cam = fm.pubs[0]
+    starts = []
+    for t in [x * 0.2 for x in range(0, 60)]:  # 12 s of ticks; the publisher dies right after each start
+        if cam.proc:
+            cam.proc.dead = True
+        before = cam.restarts
+        fm.tick(t)
+        if cam.restarts > before:
+            starts.append(round(t, 1))
+    assert starts[:3] == [1.0, 3.2, 7.4], f"restart schedule {starts}"  # +1 s, +2 s, +4 s after each death
+    assert len(starts) <= 4, "no restart storm"
+    assert cam.crashes >= 4
+
+
 def test_server_fault_and_on_demand_request(fake, monkeypatch):
     fm, calls = fake
     monkeypatch.setattr(farm, "farm_dir", lambda: fm.run_dir.parent)
@@ -96,8 +113,7 @@ def test_server_fault_and_on_demand_request(fake, monkeypatch):
     farm.request_fault("server", 4)
     fm.tick(10.0)
     assert ("server", "kill") in calls and fm.server_down_until == 14.0
-    for p in fm.pubs:  # publishers die with the server; must not restart while it's down
-        p.proc.dead = True
+    assert not any(p.alive() for p in fm.pubs), "a server fault stops every publisher"
     fm.tick(12.0)
     assert not any(p.alive() for p in fm.pubs)
     fm.tick(14.0)
@@ -191,8 +207,17 @@ def test_farm_end_to_end(monkeypatch, tmp_path):
         fm.apply(farm.Fault(at=0, kind="server", seconds=3), now)
         time.sleep(1.0)
         assert _frames(u1, 1) == 0
-        _run_until(fm, now + 12)
+        _run_until(fm, now + 5)
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:  # wait for both paths to come back, then read
+            _run_until(fm, time.monotonic() + 0.5)
+            try:
+                if sum(_paths_ready().values()) == 2:
+                    break
+            except OSError:
+                pass
         assert _frames(u1) > 30 and _frames(u2) > 30, "both streams recover after a server restart"
+        assert all(p.crashes == 0 for p in fm.pubs), "server-fault stops must not count as crashes"
     finally:
         for p in fm.pubs:
             p.stop()
