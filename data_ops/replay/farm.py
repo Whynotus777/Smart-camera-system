@@ -144,6 +144,21 @@ def server_up() -> None:
     subprocess.run([docker, "rm", "-f", CONTAINER], capture_output=True)  # noqa: S603
     run([docker, "run", "-d", "--name", CONTAINER, "-p", f"127.0.0.1:{RTSP_PORT}:8554",
          "-p", f"127.0.0.1:{API_PORT}:9997", "-v", f"{cfg}:/mediamtx.yml:ro", IMAGE])
+    wait_ready()
+
+
+def wait_ready(timeout_s: float = 30.0) -> bool:
+    """Block until the mediamtx API answers (publishers started earlier would just fail)."""
+    import urllib.request
+
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{API_PORT}/v3/paths/list", timeout=1):  # noqa: S310
+                return True
+        except OSError:
+            time.sleep(0.2)
+    return False
 
 
 def server_kill() -> None:
@@ -171,7 +186,11 @@ class Publisher:
     down_until: float = 0.0  # drop fault: don't restart before this
     resume_at: float = 0.0  # stall fault: SIGCONT at this time
     unspike_at: float = 0.0
-    restarts: int = 0
+    restarts: int = 0  # starts after the first one (faults + crash recovery)
+    crashes: int = 0  # publisher died on its own (not stopped by a fault)
+    backoff: float = 0.0  # crash-restart backoff: 1 s doubling to 30 s, reset after 60 s healthy
+    next_start: float = 0.0
+    started_at: float = 0.0
 
     @property
     def path(self) -> str:
@@ -236,6 +255,8 @@ class Farm:
         self.log(f"[fault] {f.kind} {f.target} {f.seconds:g}s")
         if f.kind == "server":
             server_kill()
+            for p in self.pubs:  # don't leave publishers hung on a dead connection; restart fresh later
+                p.stop()
             self.server_down_until = now + f.seconds
             return
         for p in (p for p in self.pubs if f.matches(p)):
@@ -260,7 +281,10 @@ class Farm:
             self.apply(fault, now)
         if self.server_down_until and now >= self.server_down_until:
             server_start()
+            wait_ready(10.0)
             self.server_down_until = 0.0
+            for p in self.pubs:  # restart promptly once the server is back, not on crash backoff
+                p.next_start, p.backoff = 0.0, 0.0
         for p in self.pubs:
             if p.resume_at and now >= p.resume_at and p.proc:
                 os.killpg(p.proc.pid, signal.SIGCONT)
@@ -269,8 +293,16 @@ class Farm:
                 p.stop()
                 p.variant, p.unspike_at = "normal", 0.0
                 p.start()
-            if not p.alive() and now >= p.down_until and not self.server_down_until:
-                p.start()  # also restarts publishers that died (e.g. during a server fault)
+            if p.proc is not None and p.proc.poll() is not None:  # died on its own
+                p.proc = None
+                p.crashes += 1
+                p.backoff = min(30.0, max(1.0, p.backoff * 2))
+                p.next_start = now + p.backoff
+            elif p.alive() and p.backoff and now - p.started_at > 60:
+                p.backoff = 0.0
+            if p.proc is None and now >= max(p.down_until, p.next_start) and not self.server_down_until:
+                p.start()
+                p.started_at = now
                 p.restarts += 1
         self.write_state(now)
 
@@ -278,7 +310,8 @@ class Farm:
         state = {"uptime_s": round(now - self.t0, 1), "server_down": bool(self.server_down_until),
                  "streams": {p.path: {"url": url(p.codec, p.cam), "alive": p.alive(), "variant": p.variant,
                                       "stalled": bool(p.resume_at), "dropped": now < p.down_until,
-                                      "restarts": p.restarts} for p in self.pubs}}
+                                      "restarts": p.restarts, "crashes": p.crashes,
+                                      "backoff_s": p.backoff} for p in self.pubs}}
         tmp = self.run_dir / "state.json.tmp"
         tmp.write_text(json.dumps(state, indent=1))
         tmp.replace(self.run_dir / "state.json")
@@ -287,6 +320,7 @@ class Farm:
         (self.run_dir / "requests").mkdir(parents=True, exist_ok=True)
         for p in self.pubs:
             p.start()
+            p.started_at = time.monotonic()
         try:
             while stop_after is None or time.monotonic() - self.t0 < stop_after:
                 self.tick(time.monotonic())

@@ -28,6 +28,11 @@ def main(argv: list[str] | None = None) -> int:
     f.add_argument("--target", default="*", help='"cam03", "h265/cam03", or "*"')
     sub.add_parser("status", help="print stream URLs and state")
     sub.add_parser("down", help="stop the mediamtx container")
+    k = sub.add_parser("soak", help="run all streams for N minutes with scheduled faults, record evidence")
+    k.add_argument("--minutes", type=float, default=60)
+    k.add_argument("--poll-s", type=float, default=60)
+    k.add_argument("--probe-every-s", type=float, default=600)
+    k.add_argument("--schedule", type=Path, default=None, help="JSON fault schedule (default: built-in)")
     a = ap.parse_args(argv)
 
     if a.cmd == "prepare":
@@ -58,6 +63,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"mediamtx: {sum(i['ready'] for i in items)}/{len(items)} paths ready")
         except OSError as e:
             print(f"mediamtx API unreachable: {e}")
+        return 0
+    if a.cmd == "soak":
+        from data_ops.replay.soak import soak
+        sched = json.loads(a.schedule.read_text()) if a.schedule else None
+        print(json.dumps(soak(a.minutes, sched, a.poll_s, a.probe_every_s), indent=1))
         return 0
     if a.cmd == "down":
         farm.server_down()
