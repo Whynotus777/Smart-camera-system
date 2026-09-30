@@ -6,7 +6,7 @@ from scs import geometry as g
 from scs.contracts import FrameRef, SiteConfig, Zone, ZoneType
 
 ROOT = Path(__file__).resolve().parents[1]
-FRAME = FrameRef(camera_id="cam1", frame_idx=0, ts=0.0, width=2000, height=1000)
+FRAME = FrameRef(camera_id="cam1", epoch=0, seq=0, frame_idx=0, ts=0.0, width=2000, height=1000)
 SQUARE = [(0.2, 0.2), (0.6, 0.2), (0.6, 0.6), (0.2, 0.6)]
 # Concave "C" shape: the notch (0.5, 0.5) is outside.
 C_SHAPE = [(0.1, 0.1), (0.9, 0.1), (0.9, 0.3), (0.3, 0.3), (0.3, 0.7), (0.9, 0.7), (0.9, 0.9), (0.1, 0.9)]

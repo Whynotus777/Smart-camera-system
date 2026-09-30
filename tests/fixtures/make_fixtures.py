@@ -99,8 +99,8 @@ def generate() -> tuple[list[Track], list[Pose]]:
     poses: list[Pose] = []
     for i in range(N_FRAMES):
         t = i / FPS
-        ref = FrameRef(camera_id=CAMERA_ID, frame_idx=i, ts=round(T0 + t, 3), width=W, height=H,
-                       stream="main", ts_mono=round(MONO0 + t, 3))
+        ref = FrameRef(camera_id=CAMERA_ID, epoch=0, seq=i, frame_idx=i, ts=round(T0 + t, 3),
+                       width=W, height=H, stream="main", ts_mono=round(MONO0 + t, 3))
         for track_id in (1, 2):
             fx, fy = _foot(track_id, t)
             x1, x2 = (fx - BOX_W / 2) * W, (fx + BOX_W / 2) * W

@@ -34,8 +34,9 @@ ADR 0001 left two open questions:
    - New optional `FrameRef.ts_mono: float | None` is the decoding host's monotonic
      clock (`time.monotonic()`) at the same instant. Use it for intervals, stall
      detection and drift. It is not comparable across hosts or reboots.
-   - Capture time from the camera/RTP clock is `FrameRef.source_ts`, defined with the
-     rest of the T00 Addendum fields (`epoch`, `seq`, `transform`).
+   - Capture time from the camera/RTP clock is `FrameRef.source_ts`, added with the
+     rest of the T00 Addendum fields (`epoch`, `seq`, `transform`) in
+     [ADR 0003](0003-frame-identity-and-profile-verification.md).
 3. `CONTRACTS_VERSION` → **0.2.0**. Changing a default is a change of meaning
    (AGENTS.md rule 3), so this gets a version bump even though the new field is
    optional.

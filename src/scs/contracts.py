@@ -5,9 +5,15 @@ optional fields; renaming/removing fields or changing semantics requires an
 ADR in docs/adr/ and a bump of CONTRACTS_VERSION.
 
 Conventions
+- Frame identity: `(camera_id, epoch, seq)` (ADR 0003). `epoch` increments on every
+  (re)connect of the source; `seq` restarts at 0 in each epoch and increases by 1 per
+  decoded frame. `frame_idx` is kept as the source-level counter (e.g. frame number
+  in a file) and is NOT an identity on its own.
 - Timestamps: `FrameRef.ts` is float seconds since Unix epoch (UTC), wall clock at
   frame decode. `FrameRef.ts_mono` (optional) is the decoding host's monotonic clock
   at the same instant; use it for intervals and drift, never across hosts/reboots.
+  `FrameRef.source_ts` (optional) is capture time from the RTP/camera clock, as epoch
+  seconds, when the source provides it. Latency = `ts - source_ts`.
 - Pixel coordinates: absolute pixels in the camera's MAIN-stream, full-resolution
   frame, origin top-left (ADR 0002). Stages that run on a resized or sub-stream image
   (e.g. a 640 px detector input) map their outputs back to that frame before
@@ -27,7 +33,7 @@ from typing import Annotated, Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-CONTRACTS_VERSION = "0.2.0"
+CONTRACTS_VERSION = "0.3.0"
 
 COCO17_KEYPOINTS: tuple[str, ...] = (
     "nose", "left_eye", "right_eye", "left_ear", "right_ear",
@@ -56,6 +62,9 @@ class StreamSpec(_Model):
     bitrate_kbps: int | None = Field(default=None, gt=0)
 
 
+Verification = Literal["approximation", "spec_sourced", "measured", "emulator_calibrated"]
+
+
 class CameraProfile(_Model):
     """Optical/encoding characteristics of a camera MODEL (not an install)."""
 
@@ -69,8 +78,17 @@ class CameraProfile(_Model):
     # Brown-Conrady radial terms for rectilinear, equidistant k1..k4 for fisheye.
     distortion: list[float] = Field(default_factory=list)
     ir_night_mode: bool = False
-    verified: bool = False  # True only once checked against datasheet or measured
+    # How much to trust these numbers (ADR 0003), weakest to strongest. A datasheet
+    # (spec_sourced) never makes noise/IR/low-light behavior calibrated.
+    verification: Verification = "approximation"
+    sources: list[str] = Field(default_factory=list)  # datasheet URLs, probe logs, recordings
     notes: str = ""
+
+    @model_validator(mode="after")
+    def _sources_back_claims(self) -> CameraProfile:
+        if self.verification != "approximation" and not self.sources:
+            raise ValueError(f"verification={self.verification!r} requires at least one entry in sources")
+        return self
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> CameraProfile:
@@ -139,12 +157,23 @@ def _check_bbox(b: BBox) -> BBox:
 
 class FrameRef(_Model):
     camera_id: str
-    frame_idx: int = Field(ge=0)
+    epoch: int = Field(ge=0)  # connection id: +1 on every (re)connect; identity = (camera_id, epoch, seq)
+    seq: int = Field(ge=0)  # per-epoch frame counter, restarts at 0 on reconnect
+    frame_idx: int = Field(ge=0)  # source-level counter (e.g. frame number in a file)
     ts: float  # epoch seconds, wall clock at decode
+    source_ts: float | None = None  # epoch seconds, RTP/camera capture time when available
+    # Preprocessing applied to the image this ref travels with, e.g. "resize640:letterbox".
+    # None = the decoded main-stream frame as-is. Output coordinates are main-stream regardless.
+    transform: str | None = None
     width: int = Field(gt=0)  # main-stream frame size (see module Conventions)
     height: int = Field(gt=0)
     stream: Literal["main", "sub"] = "main"  # stream actually decoded; coords are always main-stream
     ts_mono: float | None = None  # host monotonic clock at decode (time.monotonic())
+
+    @property
+    def identity(self) -> tuple[str, int, int]:
+        """`(camera_id, epoch, seq)`: unique per decoded frame, stable across stages."""
+        return (self.camera_id, self.epoch, self.seq)
 
 
 class Detection(_Model):

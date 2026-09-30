@@ -8,12 +8,13 @@ from pydantic import BaseModel
 import scs.contracts as C
 from scs.bus import DEFAULT_MAXLEN, InMemoryBus, RedisBus, decode, encode
 
-FRAME = C.FrameRef(camera_id="cam1", frame_idx=3, ts=1.5, width=2560, height=1440, stream="sub",
-                   ts_mono=812.25)
+FRAME = C.FrameRef(camera_id="cam1", epoch=2, seq=41, frame_idx=3, ts=1.5, width=2560, height=1440,
+                   stream="sub", ts_mono=812.25, source_ts=1.38, transform="resize640:letterbox")
 PROFILE = C.CameraProfile(
     id="p", vendor="v", model="m",
     main_stream=C.StreamSpec(width=2560, height=1440, fps=15, codec="h265", bitrate_kbps=6144),
     sub_stream=C.StreamSpec(width=640, height=360, fps=20), hfov_deg=87, distortion=[-0.3, 0.1],
+    verification="spec_sourced", sources=["https://example.com/datasheet.pdf"],
 )
 ZONE = C.Zone(id="z", type=C.ZoneType.SHELF, polygon=[(0, 0), (1, 0), (0.5, 1)])
 INSTALL = C.CameraInstall(camera_id="cam1", profile_id="p", rtsp_main_env="SCS_CAM1_RTSP_MAIN",
