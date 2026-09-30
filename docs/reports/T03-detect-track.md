@@ -21,8 +21,8 @@ torch 2.11.0+cu128 · all GPU numbers taken under `scripts/gpu exclusive` · 202
 - ID switches vs default ByteTrack (same detections, frozen val-tuned tracker):
   COCO D-FINE **MEVA −53%** (−46% per *tracked* person-minute: track recall −7 pts), SmartSpaces −36%;
   **recommended fine-tuned D-FINE −33% / −32%** (tracker tuned on COCO-D-FINE detections, not yet
-  re-tuned); YOLO11s −39% / −39%. Short-gap switches (crossings, shelf occlusions) drop 52–62% for
-  the COCO detectors. What's left is mostly **re-entries** (people leaving the camera's view and
+  re-tuned); YOLO11s −39% / −39%. Short-gap switches (crossings, shelf occlusions) drop 52–62%,
+  except YOLO11s on MEVA (−33%) and fine-tuned D-FINE on MEVA (−29%). What's left is mostly **re-entries** (people leaving the camera's view and
   returning ≥ 3 s later), which a weight-free colour embedder can't fix.
   **The −50% criterion is not met** → decision needed (Blockers in the PR).
 - D-FINE's TensorRT engine had three numerics bugs (NaN in FP16, batch size frozen in the trace,
