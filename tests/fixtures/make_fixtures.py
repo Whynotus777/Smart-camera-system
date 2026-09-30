@@ -31,6 +31,7 @@ W, H = 2560, 1440
 FPS = 10
 N_FRAMES = 100
 T0 = 1_760_000_000.0  # fixed epoch so output is byte-stable
+MONO0 = 5_000.0  # fixed host monotonic clock at the first frame
 POSE_MODEL_ID = "fixture-synthetic@0"
 
 BOX_W, BOX_H = 0.08, 0.35  # normalized person box size
@@ -99,7 +100,7 @@ def generate() -> tuple[list[Track], list[Pose]]:
     for i in range(N_FRAMES):
         t = i / FPS
         ref = FrameRef(camera_id=CAMERA_ID, frame_idx=i, ts=round(T0 + t, 3), width=W, height=H,
-                       stream="main")
+                       stream="main", ts_mono=round(MONO0 + t, 3))
         for track_id in (1, 2):
             fx, fy = _foot(track_id, t)
             x1, x2 = (fx - BOX_W / 2) * W, (fx + BOX_W / 2) * W

@@ -46,6 +46,8 @@ stage boundaries before any stage exists, or they'll collide at integration.
 
 ## Open questions (resolve by ADR before the affected Wave 1 work merges)
 
+Both were resolved by [ADR 0002](0002-main-stream-coords-and-timestamps.md): coordinates are main-stream pixels, and `FrameRef.ts_mono` was added.
+
 - **Coordinate frame of `Detection`/`Track` boxes.** D1 decodes the main stream only,
   but `FrameRef.stream` defaults to `"sub"`. T04's brief also says pose crops use
   "track boxes scaled from detector resolution", which suggests tracks are in
