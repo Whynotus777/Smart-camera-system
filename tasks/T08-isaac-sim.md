@@ -7,11 +7,12 @@ Generate labeled multi-camera video + ground truth (boxes, 2D/3D skeletons, jour
 
 ## Deliverables
 1. Environment: Isaac Sim (current release) in the official container on the 5090, driver pinned to the validated version. `sim/README.md` documents exact versions. Blackwell + Isaac Sim is driver-sensitive; test the pin before anything else.
-2. Scene `sim/scenes/cstore_v1.usd`: ~8×12 m c-store (2–3 aisles, candy rack by counter, coolers, counter, door), SimReady/purchased assets with licenses recorded in `docs/DATA.md`.
+2. **First deliverable is narrow (v0):** one shelf, one camera, one actor, matched pairs of interactions (pick → return vs pick → bag; phone out of own pocket vs item → pocket), varied over camera angle, lighting, occlusion, clothing, object size. Same actors/clothes/backgrounds on both sides of each pair. Hand v0 to T06 for `sim_transfer` before scaling up.
+2b. Scene (after v0 proves useful) `sim/scenes/cstore_v1.usd`: ~8×12 m c-store (2–3 aisles, candy rack by counter, coolers, counter, door), SimReady/purchased assets with licenses recorded in `docs/DATA.md`.
 3. Actors via Isaac Sim Replicator Agent (IRA): routines for browse, pick-inspect-return, pick-to-checkout, and staff restock. **Theft behaviors** (pocket, bag, waistband, jacket, grab-and-run) need custom animations. Try in order: existing animation libraries with clear licenses; mocap from our own staged video (video→3D human motion model, then retarget), noting that SMPL-based pipelines are non-commercial unless licensed.
 4. Camera rigs generated from `configs/camera_profiles/*` (intrinsics, distortion, resolution) at mount heights {2.4, 2.7, 3.0 m} and tilts {30, 45, 60°}, plus randomized lighting and clothing.
-5. Writer → canonical format (`docs/DATA.md`) with journey + theft labels derived from the behavior script, not re-annotated.
-6. Batch generation CLI with seeds; target v1 corpus: ≥ 2,000 clips of 20–60 s, ≥ 20% theft, all profiles × heights.
+5. Writer → canonical format (`docs/DATA.md`). Scripted truth labels (`label_source: script`) **plus per-camera `visible`** computed from the renderer (hands/item occluded or out of frame at the decisive moment → `not_observed` / `partially_observed`). Event labels start at the decisive moment, never at the start of a sequence that later ends in theft.
+6. Batch generation CLI with seeds. Scale to the v1 corpus (≥ 2,000 clips) **only after** `sim_transfer` shows v0 improves the real test set.
 
 ## Acceptance
 - [ ] Ground-truth skeletons project correctly onto frames (overlay check on 50 random frames).
@@ -20,3 +21,7 @@ Generate labeled multi-camera video + ground truth (boxes, 2D/3D skeletons, jour
 
 ## Out of scope
 Robot dispatch simulation (legacy `simulation_trigger.py` idea) — parked.
+
+## Addendum (free data)
+- Before building scenes, check what NVIDIA released for PhysicalAI-SmartSpaces (retail scenes, camera configs, pipeline). Reuse over rebuild.
+- Trial **Cosmos-Transfer** on v0 renders (sim → photoreal, labels kept via depth/segmentation controls). If it doesn't fit in 32 GB with offload, report that; no cloud GPUs without approval.
