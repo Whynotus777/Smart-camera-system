@@ -7,7 +7,7 @@ Answer "which camera, which stream, where mounted?" before we're in the store, b
 
 ## Deliverables
 1. `emulate(src_video, src_profile, dst_profile, opts) -> path` that applies, in order: FOV crop/scale, lens distortion (Brown-Conrady, or equidistant fisheye), sensor noise vs. lux, exposure/motion blur by shutter, IR night mode (grayscale + IR response + bloom), resolution, fps decimation, codec re-encode at the profile bitrate (ffmpeg, H.264/H.265, CBR/VBR), optional packet-loss artifacts.
-2. Profiles: extend `configs/camera_profiles/` (Reolink models we might deploy, a 1080p enterprise dome, a fisheye) using the `verification` levels from contracts v0.2: `approximation` → `spec_sourced` (datasheet link in `sources`) → `measured` (rtsp_probe / test footage from the physical camera) → `emulator_calibrated` (emulator output matched against that camera's real footage). A datasheet never makes noise/IR/low-light behavior calibrated.
+2. Profiles: extend `configs/camera_profiles/` (Reolink models we might deploy, a 1080p enterprise dome, a fisheye) using the `verification` levels from contracts v0.3 (ADR 0003): `approximation` → `spec_sourced` (datasheet link in `sources`) → `measured` (rtsp_probe / test footage from the physical camera) → `emulator_calibrated` (emulator output matched against that camera's real footage). A datasheet never makes noise/IR/low-light behavior calibrated.
 3. `EmulatedSource` implementing `FrameSource` so the whole pipeline can run on emulated streams.
 4. `emu_matrix` suite driver (`eval/suites/emu_matrix.py`): for each source clip × profile × {day, dusk, IR} → run pipeline → metrics via T09.
 
