@@ -89,8 +89,9 @@ def bootstrap_indices(n_units: int, b: int = DEFAULT_B, seed: int = DEFAULT_SEED
     return rng.integers(0, n_units, size=(b, n_units))
 
 
-def bootstrap_ratio(num: np.ndarray, den: np.ndarray, b: int = DEFAULT_B,
-                    seed: int = DEFAULT_SEED) -> tuple[float, tuple[float, float]]:
+def bootstrap_ratio(
+    num: np.ndarray, den: np.ndarray, b: int = DEFAULT_B, seed: int = DEFAULT_SEED
+) -> tuple[float, tuple[float, float]]:
     """Point estimate and CI of sum(num)/sum(den) with units resampled together.
 
     `num[i]`, `den[i]` are the sufficient statistics of unit i (e.g. detected events
@@ -109,8 +110,9 @@ def bootstrap_ratio(num: np.ndarray, den: np.ndarray, b: int = DEFAULT_B,
     return point, percentile_ci(reps)
 
 
-def bootstrap_stat(units: list[Any], stat: Callable[[list[Any]], float], b: int = DEFAULT_B,
-                   seed: int = DEFAULT_SEED) -> tuple[float, tuple[float, float]]:
+def bootstrap_stat(
+    units: list[Any], stat: Callable[[list[Any]], float], b: int = DEFAULT_B, seed: int = DEFAULT_SEED
+) -> tuple[float, tuple[float, float]]:
     """Generic cluster bootstrap for statistics that aren't ratios of sums (AUC, percentiles)."""
     point = stat(units)
     if not units:

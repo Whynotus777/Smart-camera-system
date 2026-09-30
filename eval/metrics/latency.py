@@ -15,8 +15,9 @@ from eval.metrics.stats import DEFAULT_B, DEFAULT_SEED, LOW_N, MetricValue, boot
 QUANTILES = {"p50": 0.50, "p90": 0.90, "p95": 0.95, "p99": 0.99}
 
 
-def latency_summary(values: np.ndarray, clock: str, b: int = DEFAULT_B,
-                    seed: int = DEFAULT_SEED) -> dict[str, MetricValue]:
+def latency_summary(
+    values: np.ndarray, clock: str, b: int = DEFAULT_B, seed: int = DEFAULT_SEED
+) -> dict[str, MetricValue]:
     v = np.asarray(values, dtype=float)
     v = v[~np.isnan(v)]
     if v.size == 0:

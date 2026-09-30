@@ -118,8 +118,9 @@ def test_matches_motmetrics(seed):
         d = 1.0 - iou_matrix(gt.boxes[gi], pr.boxes[pi])
         d[d > 0.5] = np.nan
         acc.update(gt.ids[gi].tolist(), pr.ids[pi].tolist(), d, frameid=f)
-    summ = mm.metrics.create().compute(acc, metrics=["idf1", "num_switches", "mota", "num_false_positives",
-                                                     "num_misses"], name="x")
+    summ = mm.metrics.create().compute(
+        acc, metrics=["idf1", "num_switches", "mota", "num_false_positives", "num_misses"], name="x"
+    )
     assert ours.idsw == int(summ["num_switches"].iloc[0])
     assert ours.fp == int(summ["num_false_positives"].iloc[0])
     assert ours.fn == int(summ["num_misses"].iloc[0])
@@ -132,8 +133,9 @@ def test_detection_ap_hand():
     # PR points: (R.5,P1), (R.5,P.5), (R1,P2/3). envelope: P=1 up to R=.5, P=2/3 to R=1
     # AP = .5*1 + .5*2/3
     g = TrackFrames.from_rows([(0, 1, 0, 0, 10, 10), (0, 2, 50, 0, 60, 10)])
-    p = TrackFrames.from_rows([(0, 1, 0, 0, 10, 10, 0.9), (0, 2, 1, 0, 11, 10, 0.8),
-                               (0, 3, 50, 0, 60, 10, 0.7)])
+    p = TrackFrames.from_rows(
+        [(0, 1, 0, 0, 10, 10, 0.9), (0, 2, 1, 0, 11, 10, 0.8), (0, 3, 50, 0, 60, 10, 0.7)]
+    )
     assert detection_ap([g], [p]).value == pytest.approx(0.5 + 0.5 * 2 / 3)
 
 
@@ -143,10 +145,16 @@ def test_duplicate_rows_rejected():
 
 
 def test_journey_f1_hand():
-    gt = [JourneyEvent("c", "store_exit", 10), JourneyEvent("c", "store_exit", 50),
-          JourneyEvent("c", "checkout_visit", 30)]
-    pred = [JourneyEvent("c", "store_exit", 11), JourneyEvent("c", "store_exit", 12),  # duplicate -> FP
-            JourneyEvent("c", "store_exit", 90)]  # FP; GT@50 missed
+    gt = [
+        JourneyEvent("c", "store_exit", 10),
+        JourneyEvent("c", "store_exit", 50),
+        JourneyEvent("c", "checkout_visit", 30),
+    ]
+    pred = [
+        JourneyEvent("c", "store_exit", 11),
+        JourneyEvent("c", "store_exit", 12),  # duplicate -> FP
+        JourneyEvent("c", "store_exit", 90),
+    ]  # FP; GT@50 missed
     out = journey_f1(gt, pred, tol=3, b=20)
     # store_exit: TP 1, FP 2, FN 1 -> F1 = 2/(2+2+1) = 0.4
     assert out["store_exit"].value == pytest.approx(0.4)

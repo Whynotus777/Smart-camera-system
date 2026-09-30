@@ -87,8 +87,12 @@ def _tiou(p: Pred, g: GTEvent) -> float:
     return max(inter, 0.0) / union
 
 
-def match(gts: Sequence[GTEvent], preds: Iterable[Pred], tol: float = 2.0,
-          unit_hours: dict[str, float] | None = None) -> MatchResult:
+def match(
+    gts: Sequence[GTEvent],
+    preds: Iterable[Pred],
+    tol: float = 2.0,
+    unit_hours: dict[str, float] | None = None,
+) -> MatchResult:
     """Run the greedy pass. `unit_hours` must cover every unit if FA/h is wanted."""
     gts = list(gts)
     order = sorted(enumerate(preds), key=lambda ip: (-ip[1].score, ip[1].t_start, ip[0]))
@@ -151,18 +155,31 @@ def _unit_stats(r: MatchResult, k: int, dup_as_false: bool) -> dict[str, np.ndar
             dup[j] += 1
     hours = np.array([r.unit_hours[u] for u in r.units]) if r.unit_hours is not None else None
     burden = fal + dup if dup_as_false else fal
-    return {"pos": pos, "det": det, "false": fal, "dup": dup, "burden": burden,
-            **({"hours": hours} if hours is not None else {})}
+    return {
+        "pos": pos,
+        "det": det,
+        "false": fal,
+        "dup": dup,
+        "burden": burden,
+        **({"hours": hours} if hours is not None else {}),
+    }
 
 
-def operating_point(r: MatchResult, threshold: float, dup_as_false: bool = True,
-                    b: int = DEFAULT_B, seed: int = DEFAULT_SEED) -> OperatingPoint:
+def operating_point(
+    r: MatchResult, threshold: float, dup_as_false: bool = True, b: int = DEFAULT_B, seed: int = DEFAULT_SEED
+) -> OperatingPoint:
     """Recall and FA/h (with clip-bootstrap CIs) at a fixed threshold."""
     k = r.kept(threshold)
     s = _unit_stats(r, k, dup_as_false)
     n_pos, n_units = int(s["pos"].sum()), len(r.units)
-    counts = {"positives": n_pos, "detected": int(s["det"].sum()), "false": int(s["false"].sum()),
-              "duplicates": int(s["dup"].sum()), "units": n_units, "alerts_kept": k}
+    counts = {
+        "positives": n_pos,
+        "detected": int(s["det"].sum()),
+        "false": int(s["false"].sum()),
+        "duplicates": int(s["dup"].sum()),
+        "units": n_units,
+        "alerts_kept": k,
+    }
     if n_pos == 0:
         rec = MetricValue.unavailable("no positive events", units=n_units)
     else:
@@ -173,8 +190,13 @@ def operating_point(r: MatchResult, threshold: float, dup_as_false: bool = True,
     else:
         v, ci = bootstrap_ratio(s["burden"], s["hours"], b, seed)
         hours = float(s["hours"].sum())
-        fa = MetricValue(v, ci, {"units": n_units, "false_alerts": int(s["burden"].sum())},
-                         unit="per camera-hour", reason=f"{hours:.2f} camera-hours")
+        fa = MetricValue(
+            v,
+            ci,
+            {"units": n_units, "false_alerts": int(s["burden"].sum())},
+            unit="per camera-hour",
+            reason=f"{hours:.2f} camera-hours",
+        )
     return OperatingPoint(threshold, rec, fa, counts)
 
 
@@ -182,16 +204,30 @@ def curve(r: MatchResult, dup_as_false: bool = True) -> list[dict[str, float]]:
     """Recall vs FA/h at every distinct score, plus the no-alert point (threshold=+inf)."""
     total_pos = sum(1 for g in r.gts if g.role == "positive")
     hours = sum(r.unit_hours.values()) if r.unit_hours is not None else None
-    pts = [{"threshold": math.inf, "recall": 0.0 if total_pos else math.nan,
-            "fa_per_hour": 0.0 if hours else math.nan, "false": 0, "detected": 0}]
+    pts = [
+        {
+            "threshold": math.inf,
+            "recall": 0.0 if total_pos else math.nan,
+            "fa_per_hour": 0.0 if hours else math.nan,
+            "false": 0,
+            "detected": 0,
+        }
+    ]
     det = fal = 0
     for i, (p, o) in enumerate(zip(r.preds, r.outcome, strict=True)):
         det += o == "tp"
         fal += o == "false" or (dup_as_false and o == "duplicate")
         last_of_score = i + 1 == len(r.preds) or r.preds[i + 1].score != p.score
         if last_of_score:
-            pts.append({"threshold": p.score, "recall": det / total_pos if total_pos else math.nan,
-                        "fa_per_hour": fal / hours if hours else math.nan, "false": fal, "detected": det})
+            pts.append(
+                {
+                    "threshold": p.score,
+                    "recall": det / total_pos if total_pos else math.nan,
+                    "fa_per_hour": fal / hours if hours else math.nan,
+                    "false": fal,
+                    "detected": det,
+                }
+            )
     return pts
 
 
@@ -208,8 +244,9 @@ def threshold_at_budget(r: MatchResult, budget_per_hour: float, dup_as_false: bo
     return best
 
 
-def per_subtype_recall(r: MatchResult, threshold: float, b: int = DEFAULT_B,
-                       seed: int = DEFAULT_SEED) -> dict[str, MetricValue]:
+def per_subtype_recall(
+    r: MatchResult, threshold: float, b: int = DEFAULT_B, seed: int = DEFAULT_SEED
+) -> dict[str, MetricValue]:
     """Recall per positive subtype at `threshold`; unavailable if no positive has a subtype."""
     k = r.kept(threshold)
     hit = {m for m, o in zip(r.matched_gt[:k], r.outcome[:k], strict=True) if o == "tp"}
@@ -226,19 +263,19 @@ def per_subtype_recall(r: MatchResult, threshold: float, b: int = DEFAULT_B,
                 den[uj[g.unit]] += 1
                 num[uj[g.unit]] += i in hit
         v, ci = bootstrap_ratio(num, den, b, seed)
-        out[st] = MetricValue(v, ci, {"events": int(den.sum()), "units": len(units)},
-                              low_n=den.sum() < LOW_N)
+        out[st] = MetricValue(v, ci, {"events": int(den.sum()), "units": len(units)}, low_n=den.sum() < LOW_N)
     n_unlabeled = sum(1 for _, g in pos if g.subtype is None)
     if n_unlabeled:
-        out["_no_subtype"] = MetricValue.unavailable("positives without a subtype label",
-                                                     events=n_unlabeled)
+        out["_no_subtype"] = MetricValue.unavailable("positives without a subtype label", events=n_unlabeled)
     return out
 
 
 def latencies(r: MatchResult, threshold: float) -> np.ndarray:
     """Emit time minus GT event end, for true positives that carry `t_emit` (seconds)."""
     k = r.kept(threshold)
-    out = [p.t_emit - r.gts[m].t_end for p, o, m in
-           zip(r.preds[:k], r.outcome[:k], r.matched_gt[:k], strict=True)
-           if o == "tp" and p.t_emit is not None]
+    out = [
+        p.t_emit - r.gts[m].t_end
+        for p, o, m in zip(r.preds[:k], r.outcome[:k], r.matched_gt[:k], strict=True)
+        if o == "tp" and p.t_emit is not None
+    ]
     return np.array(out, dtype=float)

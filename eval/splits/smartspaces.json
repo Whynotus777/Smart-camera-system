@@ -1,0 +1,111 @@
+{
+ "format": "t09-splits/1",
+ "dataset": "smartspaces",
+ "version": "1",
+ "spec": {
+  "holdout": {
+   "test": {
+    "view_groups": [
+     "smartspaces:scene_073"
+    ]
+   },
+   "val": {
+    "view_groups": [
+     "smartspaces:scene_072"
+    ]
+   }
+  },
+  "fractions": {
+   "train": 1.0
+  },
+  "link_actors": false,
+  "link_views": true,
+  "seed": "t09"
+ },
+ "notes": "synthetic retail (Isaac Sim), held out by scene; scenes share one space/character set.",
+ "splits": {
+  "train": [
+   "scene_071.camera_0635",
+   "scene_071.camera_0636",
+   "scene_071.camera_0637",
+   "scene_071.camera_0638",
+   "scene_071.camera_0639",
+   "scene_071.camera_0640",
+   "scene_071.camera_0641",
+   "scene_071.camera_0642",
+   "scene_071.camera_0643",
+   "scene_071.camera_0644",
+   "scene_071.camera_0645",
+   "scene_071.camera_0646",
+   "scene_071.camera_0647",
+   "scene_071.camera_0648",
+   "scene_071.camera_0649",
+   "scene_071.camera_0650",
+   "scene_074.camera_0683",
+   "scene_074.camera_0684",
+   "scene_074.camera_0685",
+   "scene_074.camera_0686",
+   "scene_074.camera_0687",
+   "scene_074.camera_0688",
+   "scene_074.camera_0689",
+   "scene_074.camera_0690",
+   "scene_074.camera_0691",
+   "scene_074.camera_0692",
+   "scene_074.camera_0693",
+   "scene_074.camera_0694",
+   "scene_074.camera_0695",
+   "scene_074.camera_0696",
+   "scene_074.camera_0697",
+   "scene_074.camera_0698",
+   "scene_075.camera_0699",
+   "scene_075.camera_0700",
+   "scene_075.camera_0702",
+   "scene_075.camera_0703",
+   "scene_075.camera_0704"
+  ],
+  "val": [
+   "scene_072.camera_0651",
+   "scene_072.camera_0652",
+   "scene_072.camera_0653",
+   "scene_072.camera_0654",
+   "scene_072.camera_0655",
+   "scene_072.camera_0656",
+   "scene_072.camera_0657",
+   "scene_072.camera_0658",
+   "scene_072.camera_0659",
+   "scene_072.camera_0660",
+   "scene_072.camera_0661",
+   "scene_072.camera_0662",
+   "scene_072.camera_0663",
+   "scene_072.camera_0664",
+   "scene_072.camera_0665",
+   "scene_072.camera_0666"
+  ],
+  "test": [
+   "scene_073.camera_0667",
+   "scene_073.camera_0668",
+   "scene_073.camera_0669",
+   "scene_073.camera_0670",
+   "scene_073.camera_0671",
+   "scene_073.camera_0672",
+   "scene_073.camera_0673",
+   "scene_073.camera_0674",
+   "scene_073.camera_0675",
+   "scene_073.camera_0676",
+   "scene_073.camera_0677",
+   "scene_073.camera_0678",
+   "scene_073.camera_0679",
+   "scene_073.camera_0680",
+   "scene_073.camera_0681",
+   "scene_073.camera_0682"
+  ]
+ },
+ "excluded": {},
+ "group_of": {},
+ "counts": {
+  "train": 37,
+  "val": 16,
+  "test": 16,
+  "excluded": 0
+ }
+}

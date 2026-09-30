@@ -39,8 +39,10 @@ def test_auc_degenerate_is_nan_and_unavailable():
 
 
 def test_frame_auc_counts_and_ci():
-    clips = [(np.array([0, 0, 1, 1]), np.array([0.1, 0.2, 0.8, 0.9])),
-             (np.array([0, 1, 0, 0]), np.array([0.3, 0.6, 0.2, 0.1]))]
+    clips = [
+        (np.array([0, 0, 1, 1]), np.array([0.1, 0.2, 0.8, 0.9])),
+        (np.array([0, 1, 0, 0]), np.array([0.3, 0.6, 0.2, 0.1])),
+    ]
     out = frame_auc(clips, b=200)
     assert out["auc_roc"].value == pytest.approx(1.0)
     assert out["auc_roc"].n == {"frames": 8, "positive_frames": 3, "clips": 2, "positive_clips": 2}
