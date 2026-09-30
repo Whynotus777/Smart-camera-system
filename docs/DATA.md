@@ -91,9 +91,11 @@ Staging protocol for `lab_mock_aisle` (so labels are cheap and useful):
 | id | License | Use | Notes |
 |---|---|---|---|
 | Ultralytics YOLO (v8/11) detect & pose | **AGPL-3.0** (enterprise license available) | R&D | Great velocity; must be licensed or swapped before customer deployment. |
-| boxmot trackers | **Verify** (believed AGPL-3.0) | R&D | Prefer MIT ByteTrack/OC-SORT reference impls for prod. |
+| boxmot trackers | **AGPL-3.0** (verified 2026-09-29, GitHub license API) | not used | T03 ports the MIT ByteTrack (ifzhang/ByteTrack) and BoT-SORT (NirAharon/BoT-SORT) reference impls instead (`src/scs/perception/track*.py`). |
 | RTMDet / RTMPose (OpenMMLab) | Apache-2.0 | prod candidate | Top-down pose on crops; TRT export supported. |
 | RT-DETR / D-FINE family | Apache-2.0 (check each repo) | prod candidate | Detector alternative. |
+| `ustc-community/dfine-small-coco` (D-FINE-S, HF) | Apache-2.0 code (Peterande/D-FINE) + weights (model card); trained on COCO only | prod candidate | T03 Apache-2.0 detector. The `*-obj2coco` variants add Objects365 (terms not cleared): **don't use**. |
+| Learned person-ReID weights (OSNet etc. via torchreid) | code MIT; weights trained on Market-1501 / MSMT17 / DukeMTMC | **blocked** | Training sets are research-only or withdrawn (DukeMTMC, see "Don't use"). T03 uses a weight-free colour-histogram embedder instead. |
 | MediaPipe Pose | Apache-2.0 | retire | Single-person, CPU-bound, frontal bias. |
 | STG-NF | check repo | R&D baseline | Best baseline on PoseLift/RetailS. |
 | NVIDIA TAO models (PeopleNet, ActionRecognitionNet, PoseClassificationNet) | per NGC model card (check each) | R&D → prod after review | Starting weights; trained partly on synthetic people. |
