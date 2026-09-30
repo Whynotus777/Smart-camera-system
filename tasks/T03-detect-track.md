@@ -6,15 +6,16 @@
 Batched person detection across cameras and per-camera tracking with low ID switches, behind swappable interfaces.
 
 ## Deliverables
+0. Coordinates (ADR 0002): detectors run on a resized input (~640 px) but **map boxes back to main-stream full-res pixels** before returning `Detection`s. Keep the letterbox/scale parameters and unit-test the round trip. Nothing leaves T03 in detector-input pixels.
 1. `Detector` implementations: (a) Ultralytics YOLO11 (R&D, AGPL) and (b) one Apache-2.0 option (RTMDet or RT-DETR/D-FINE). Both export to TensorRT FP16 with batch = number of cameras.
 2. `Tracker` implementations: ByteTrack (MIT reference impl) and one appearance-aware tracker (e.g. BoT-SORT-style with a lightweight ReID) for occlusions at shelves.
 3. Optional `CrossCameraAssociator` (in-memory, TTL 30 min, no persistence). Leave it disabled by default; document when it helps.
 4. Fine-tuning script for detector on MEVA indoor + sim + (later) lab data; overhead/steep-angle views are the domain gap.
-5. Comparison report: mAP-person on a held-out CCTV set, IDF1 and ID switches on `lab_e2e`/sim clips, latency per batch of 10, and **license** per option.
+5. Comparison report: mAP-person on a held-out CCTV set (MEVA), IDF1 and ID switches on sim clips now and on `quick_capture` / `lab_e2e` *(when data exists)*, latency per batch of 10, and **license** per option.
 
 ## Acceptance
 - [ ] Batch of 10 × 640 px in < 10 ms on the 5090 (TRT FP16) for at least one detector.
-- [ ] ID switches per person-minute at least 50% lower than legacy ByteTrack config on the same clips (legacy demo ≈ 2 switches per 10 s).
+- [ ] ID switches per person-minute at least 50% lower than the **baseline: default ByteTrack settings** on the same clips. Clips now: `tests/fixtures/video/demo_*.mp4`, which are smoke-level only because the PoC's boxes are burned into the pixels (see the README there). Then `quick_capture` *(when data exists)*. The legacy `byte_tracker_fixed` config isn't in the repo, so it can't be the baseline.
 - [ ] Both detectors pass the same interface test suite.
 - [ ] Report committed to `docs/reports/T03-detect-track.md`.
 
