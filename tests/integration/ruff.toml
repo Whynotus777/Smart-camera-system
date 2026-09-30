@@ -1,0 +1,7 @@
+# Integration tests drive ffmpeg/ffprobe subprocesses, local HTTP and seeded chaos RNGs;
+# the bandit subprocess/urlopen/random rules are noise here.
+extend = "../../pyproject.toml"
+src = ["../../src", "."]  # scs and the m1_* helpers are both first-party
+
+[lint]
+extend-ignore = ["S310", "S311", "S603", "S607"]
