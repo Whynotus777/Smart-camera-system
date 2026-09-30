@@ -85,3 +85,19 @@ def test_dataset_lock_is_exclusive(tmp_path):
             pass
     with common.dataset_lock(tmp_path):  # released after the first block
         pass
+
+
+def test_s3_multipart_etag(tmp_path):
+    f = tmp_path / "obj.bin"
+    data = bytes(range(256)) * (4096 * 50)  # 50 MiB
+    f.write_bytes(data)
+    ps = 8 * 1024 * 1024
+    parts = [hashlib.md5(data[i:i + ps], usedforsecurity=False).digest() for i in range(0, len(data), ps)]
+    etag = f'"{hashlib.md5(b"".join(parts), usedforsecurity=False).hexdigest()}-{len(parts)}"'
+    assert common.s3_etag_matches(f, etag) is True
+    assert common.s3_etag_matches(f, etag.replace(etag[1], "0" if etag[1] != "0" else "1")) is False
+    single = f'"{hashlib.md5(data, usedforsecurity=False).hexdigest()}"'
+    assert common.s3_etag_matches(f, single) is True
+    rf = RemoteFile("obj.bin", "s3://b/obj.bin", len(data), f"s3etag:{etag.strip(chr(34))}")
+    ok, how, _ = common.verify(f, rf)
+    assert ok and how == "size+s3etag(multipart md5)"
