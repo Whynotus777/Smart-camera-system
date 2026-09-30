@@ -61,8 +61,9 @@ def average_precision(y: np.ndarray, s: np.ndarray) -> float:
     return float(np.sum(np.diff(np.r_[0.0, rec]) * prec))
 
 
-def frame_auc(clips: Sequence[tuple[np.ndarray, np.ndarray]], b: int = DEFAULT_B,
-              seed: int = DEFAULT_SEED) -> dict[str, MetricValue]:
+def frame_auc(
+    clips: Sequence[tuple[np.ndarray, np.ndarray]], b: int = DEFAULT_B, seed: int = DEFAULT_SEED
+) -> dict[str, MetricValue]:
     """AUC-ROC and AP over all frames of all clips, CI by resampling clips.
 
     `clips` = [(labels[T], scores[T]), ...], one pair per clip (the bootstrap unit).
@@ -75,12 +76,18 @@ def frame_auc(clips: Sequence[tuple[np.ndarray, np.ndarray]], b: int = DEFAULT_B
         if np.isnan(np.asarray(s, dtype=float)).any():
             raise ValueError("NaN frame scores: fill frames without a person before scoring")
     y_all = np.concatenate([c[0] for c in clips]).astype(bool)
-    n = {"frames": int(y_all.size), "positive_frames": int(y_all.sum()), "clips": len(clips),
-         "positive_clips": sum(1 for c in clips if np.any(c[0]))}
+    n = {
+        "frames": int(y_all.size),
+        "positive_frames": int(y_all.sum()),
+        "clips": len(clips),
+        "positive_clips": sum(1 for c in clips if np.any(c[0])),
+    }
     out: dict[str, MetricValue] = {}
     for name, fn in (("auc_roc", auc_roc), ("auc_pr", average_precision)):
+
         def stat(cs: list[tuple[np.ndarray, np.ndarray]], fn=fn) -> float:
             return fn(np.concatenate([c[0] for c in cs]), np.concatenate([c[1] for c in cs]))
+
         v, ci = bootstrap_stat(list(clips), stat, b, seed)
         if math.isnan(v):
             out[name] = MetricValue.unavailable("needs both positive and negative frames", **n)
@@ -101,8 +108,9 @@ def gaussian_smooth(x: np.ndarray, sigma: float) -> np.ndarray:
     return np.convolve(xp, k, mode="valid")
 
 
-def frame_scores_from_tracks(n_frames: int, frame_idx: np.ndarray, scores: np.ndarray,
-                             fill: float | None = None, sigma: float = 0.0) -> np.ndarray:
+def frame_scores_from_tracks(
+    n_frames: int, frame_idx: np.ndarray, scores: np.ndarray, fill: float | None = None, sigma: float = 0.0
+) -> np.ndarray:
     """Per-frame clip score = max over tracks' scores at that frame.
 
     Frames with no scored person get `fill` (default: the clip's minimum score, or 0 if

@@ -30,9 +30,14 @@ class JourneyEvent:
     person: str | None = None
 
 
-def journey_f1(gt: list[JourneyEvent], pred: list[JourneyEvent], tol: float = 3.0,
-               types: tuple[str, ...] = JOURNEY_TYPES, b: int = DEFAULT_B,
-               seed: int = DEFAULT_SEED) -> dict[str, MetricValue]:
+def journey_f1(
+    gt: list[JourneyEvent],
+    pred: list[JourneyEvent],
+    tol: float = 3.0,
+    types: tuple[str, ...] = JOURNEY_TYPES,
+    b: int = DEFAULT_B,
+    seed: int = DEFAULT_SEED,
+) -> dict[str, MetricValue]:
     out: dict[str, MetricValue] = {}
     for typ in types:
         g_by, p_by = defaultdict(list), defaultdict(list)
@@ -65,6 +70,7 @@ def journey_f1(gt: list[JourneyEvent], pred: list[JourneyEvent], tol: float = 3.
             tp[k], fp[k], fn[k] = m, len(ps) - m, len(gs) - m
         v, ci = bootstrap_ratio(2 * tp, 2 * tp + fp + fn, b, seed)
         n_gt = int(tp.sum() + fn.sum())
-        out[typ] = MetricValue(v, ci, {"gt": n_gt, "pred": int(tp.sum() + fp.sum()), "units": len(units)},
-                               low_n=n_gt < LOW_N)
+        out[typ] = MetricValue(
+            v, ci, {"gt": n_gt, "pred": int(tp.sum() + fp.sum()), "units": len(units)}, low_n=n_gt < LOW_N
+        )
     return out

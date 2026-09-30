@@ -48,8 +48,14 @@ def test_greedy_outcomes_overlap_duplicates_ignore():
     r = match(GTS, PREDS, tol=0.0, unit_hours=HOURS)
     got = [(p.score, p.t_start, o) for p, o in zip(r.preds, r.outcome, strict=True)]
     assert got == [
-        (0.9, 12, "tp"), (0.8, 11, "tp"), (0.7, 14, "duplicate"), (0.6, 203, "ignored"),
-        (0.5, 300, "false"), (0.4, 55, "tp"), (0.4, 58, "duplicate"), (0.1, 104, "tp"),
+        (0.9, 12, "tp"),
+        (0.8, 11, "tp"),
+        (0.7, 14, "duplicate"),
+        (0.6, 203, "ignored"),
+        (0.5, 300, "false"),
+        (0.4, 55, "tp"),
+        (0.4, 58, "duplicate"),
+        (0.1, 104, "tp"),
     ]
     # the 0.9 alert took A (index 0), 0.8 took B (index 1)
     assert r.matched_gt[:2] == [0, 1]
@@ -60,8 +66,14 @@ def test_operating_point_counts_and_rates():
     # threshold 0.4: kept = first 7. positives = 4 (A,B,C,E). detected A,B,E = 3.
     # false = 1 (300-310); duplicates = 2 (0.7 and 0.4@58); hours = 2.
     op = operating_point(r, 0.4, dup_as_false=True, b=200)
-    assert op.counts == {"positives": 4, "detected": 3, "false": 1, "duplicates": 2, "units": 2,
-                         "alerts_kept": 7}
+    assert op.counts == {
+        "positives": 4,
+        "detected": 3,
+        "false": 1,
+        "duplicates": 2,
+        "units": 2,
+        "alerts_kept": 7,
+    }
     assert op.recall.value == pytest.approx(3 / 4)
     assert op.fa_per_hour.value == pytest.approx((1 + 2) / 2)
     op2 = operating_point(r, 0.4, dup_as_false=False, b=200)

@@ -151,8 +151,9 @@ class SeqStats:
     gt_frames_seconds: float  # person-seconds of GT (for switches per person-minute)
 
 
-def sequence_stats(gt: TrackFrames, pred: TrackFrames, iou: float = 0.5, fps: float = 30.0,
-                   use_scipy: bool = True) -> SeqStats:
+def sequence_stats(
+    gt: TrackFrames, pred: TrackFrames, iou: float = 0.5, fps: float = 30.0, use_scipy: bool = True
+) -> SeqStats:
     gtf, prf = _by_frame(gt), _by_frame(pred)
     gt_ids = {int(x): k for k, x in enumerate(np.unique(gt.ids))}
     pr_ids = {int(x): k for k, x in enumerate(np.unique(pred.ids))}
@@ -203,8 +204,9 @@ def sequence_stats(gt: TrackFrames, pred: TrackFrames, iou: float = 0.5, fps: fl
     return SeqStats(len(gt.frame), len(pred.frame), idtp, tp, fp, fn, idsw, len(gt.frame) / fps)
 
 
-def tracking_metrics(seqs: list[SeqStats], b: int = DEFAULT_B,
-                     seed: int = DEFAULT_SEED) -> dict[str, MetricValue]:
+def tracking_metrics(
+    seqs: list[SeqStats], b: int = DEFAULT_B, seed: int = DEFAULT_SEED
+) -> dict[str, MetricValue]:
     if not seqs:
         return {k: MetricValue.unavailable("no sequences") for k in ("idf1", "idsw_per_person_min", "mota")}
     a = {k: np.array([getattr(s, k) for s in seqs], dtype=float) for k in SeqStats.__dataclass_fields__}
@@ -254,5 +256,9 @@ def detection_ap(gt: list[TrackFrames], pred: list[TrackFrames], iou: float = 0.
     mpre = np.maximum.accumulate(mpre[::-1])[::-1]
     i = np.flatnonzero(mrec[1:] != mrec[:-1])
     ap = float(np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1]))
-    return MetricValue(ap, None, {"gt_boxes": n_gt, "pred_boxes": len(recs), "sequences": len(gt)},
-                       reason="CI unavailable for AP (not additive over sequences)")
+    return MetricValue(
+        ap,
+        None,
+        {"gt_boxes": n_gt, "pred_boxes": len(recs), "sequences": len(gt)},
+        reason="CI unavailable for AP (not additive over sequences)",
+    )
