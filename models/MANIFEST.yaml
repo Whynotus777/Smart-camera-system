@@ -1,0 +1,27 @@
+# Model registry (AGENTS.md rule 4): weights and engines are never committed; their source,
+# license, build recipe, versions and hashes are. Engines are per GPU: rebuild from `recipe`
+# on each target and record the new engine hash under `engines`.
+# Keys: id → {task, license, use, source, recipe, engines: [{gpu, trt, sha256, ...}]}
+
+dfine-s:
+  task: T03 person detector (production candidate)
+  license: Apache-2.0 (code github.com/Peterande/D-FINE, HF transformers; weights model card)
+  use: prod candidate
+  source:
+    hf_id: ustc-community/dfine-small-coco
+    revision: f79e65b5fbb33ceb9d3ebba042955d7410c608f8
+    training_data: COCO 2017 only (the *obj2coco* variants add Objects365 and are not used)
+  recipe: scripts/gpu exclusive -- python -m scs.perception.detect_export dfine
+  notes: >
+    BF16 + FP32 decoder elementwise layers, dynamic batch 1-16 at 640x640 (stretch resize).
+    FP16 is not used: on TRT 10.16 / sm_120 it produced NaN (fixed) and then wrong results at
+    batch > 1; see docs/reports/T03-detect-track.md "D-FINE engine numerics". The export
+    refuses to write out an engine that fails the finite-output or batch-invariance checks.
+  engines:
+    - gpu: NVIDIA GeForce RTX 5090 (sm_120), driver 580.173.02
+      tensorrt: 10.16.1.11
+      torch: 2.11.0+cu128
+      precision: bf16 (1318 layers pinned fp32)
+      onnx_sha256: 0a4e6ffb3c95c5398ae16399c82adf3cdabd52206ce8f1c410ac33262fc28637
+      engine_sha256: 2e87f2c05344801b2bc1515cfc76e1f8377d8bda80aae798a98a3553e0f3ee34
+      path: models/dfine-s/dfine_bf16_b16.engine
