@@ -1,0 +1,21 @@
+# gitleaks config: default rules + RTSP URLs with a literal user:password, which the
+# default ruleset misses (and which is what leaked in this repo's history).
+# Used by the pre-commit hook and by gitleaks-action in CI.
+title = "scs"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "rtsp-url-credentials"
+description = "RTSP URL with an embedded username:password"
+regex = '''rtsp://[^\s<>:/@"']+:[^\s<>@"']+@'''
+keywords = ["rtsp://"]
+
+[[rules.allowlists]]
+description = "Fake credential URLs in tests/docs that demonstrate the guardrails"
+paths = ['''(^|/)tests/test_contracts\.py$''', '''(^|/)tasks/T01-hygiene-legacy\.md$''']
+
+[[allowlists]]
+description = "Gitignored build artefacts and local envs (e.g. bytecode caches of the files above)"
+paths = ['''(^|/)__pycache__/''', '''(^|/)\.venv/''']

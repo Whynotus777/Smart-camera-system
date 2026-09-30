@@ -1,151 +1,79 @@
-# 10-Camera-Shoplifting-Detection
-This system uses state-of-the-art computer vision and machine learning to detect shoplifting in real-time. It combines multiple AI technologies:
+# Smart Camera System
 
-- YOLOv8 for person detection
-- ByteTracker for multi-object tracking
-- MediaPipe for pose estimation
-- LSTM Neural Networks for temporal-action recognition
+Retail loss-prevention perception for convenience stores. The first pilot is
+7-Eleven stores with Reolink cameras.
 
-### Authors:
+An edge box ingests 4–10 RTSP cameras, detects and tracks people, and estimates pose
+on high-resolution crops. A **journey state machine** then follows each person:
+shelf interaction → item pickup → conceal candidate → exit without checkout.
+Suspicious journeys become alerts with evidence clips. Every alert goes to a **human
+review queue** before anything reaches the store; the system never confronts or
+accuses anyone on its own. Everything is measured by an eval harness against public
+data, simulation and staged lab footage.
 
-    Name: Ishan Kharat (ishanmk@umd.edu)   Driver
+This repo is mid-rebuild from a lab proof of concept into that system.
 
-    Name: Abdul Manan (abdul@quantumroboticslab.com)  Navigator
+**Contributors and coding agents: read [`AGENTS.md`](AGENTS.md) first.** Its rules
+are binding. Then read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+[`docs/ROADMAP.md`](docs/ROADMAP.md), and your brief in [`tasks/`](tasks/).
 
+## Quickstart
 
-### High-Level Flow:
+Requires Python 3.11 and [uv](https://docs.astral.sh/uv/).
 
-        RTSP Camera Streams
-            ↓
-       YOLOv8 Detection (Find people)
-            ↓
-       ByteTracker (Track each person)
-            ↓
-       MediaPipe Pose (Detect body keypoints)
-            ↓
-       Action Recognition (Analyze gestures)
-            ↓
-       LSTM Classifier (Understand sequences)
-            ↓
-       Alert System (Notify if suspicious)
-            ↓
-       Video Recording (Save evidence)
-
-### Technical Details:
-    Architecture: CSPDarknet53 backbone
-    Parameters: ~3.2 million (YOLOv8n - nano version)
-    Input size: 640x360 (optimized for speed)
-    Output: [x1, y1, x2, y2, confidence, class]
-    Speed: 100+ FPS on RTX 4070, 25-30 FPS on Jetson
-    Accuracy: 95%+ person detection accuracy
-
-
-### System Integration Flow:
-
-    1. RTSP Stream → Receive frame (30ms)
-       ↓
-    2. YOLOv8 → Detect people (30ms)
-       ↓
-    3. ByteTracker → Assign/update track IDs (5ms)
-       ↓
-    4. For each tracked person:
-       |
-       ├→ MediaPipe → Extract 33 keypoints (15ms)
-       |   ↓
-       ├→ Action Recognition → Analyze gestures (5ms)
-       |   ↓
-       └→ Every 30 frames:
-           LSTM → Predict sequence class (10ms)
-           ↓
-           If suspicious:
-           |
-           ├→ Generate alert
-           ├→ Start video recording
-           ├→ Send to dashboard
-           └→ SMS notification
-
-Total latency: ~100ms per person
-
-
-## Quick Start
-
-
-    git clone https://github.com/IshanMahesh/10-Camera-Shoplifting-Detection_Quantum.git
-
-    python -m venv .venv && source .venv/bin/activate
-
-    pip install --upgrade pip
-
-    pip install -r requirements.txt
-
-redis is included in `requirements.txt` to enable the Redis-backed messaging layer.
-Edit camera sources in `deepsort_poc.py` to use your RTSP URLs:
-
-Camera URLs (including credentials) come from environment variables. Copy `.env.example` to `.env` and fill in your own values; never commit them.
 ```bash
-export SCS_CAM1_RTSP_URL="rtsp://<user>:<password>@<camera-ip>:554/h264Preview_01_sub"
+uv venv -p 3.11 && source .venv/bin/activate
+uv pip install -e ".[dev]"            # add ",perception" for OpenCV/PyAV work
+
+pytest -m "not gpu and not data and not slow"
+ruff check src tests
+mypy src/scs/contracts.py src/scs/bus.py src/scs/*/base.py
+
+uv tool install pre-commit && pre-commit install   # secret, credential and size checks
 ```
 
-Make sure your device is reading the camera. To test it run:
+Optional, to run the bus tests against a real Redis:
 
 ```bash
-python test.py
-```
-Once your camera is running successfully, it means your device reads the camera data.
-
-
-Now run the code
-```bash
-python camera_system_with_lstm.py
+docker run -d --rm -p 6379:6379 redis:7
+SCS_REDIS_URL=redis://localhost:6379/15 pytest tests/test_bus.py
 ```
 
-### Agent-Based Architecture
-- **Perception Agent (`camera_system_with_lstm.py`)**: Detects and tracks people, raises human alerts, and publishes structured event data to Redis.
-- **Dispatcher Agent (`dispatcher_agent.py`)**: Listens for events and logs intended robot actions to `task_log.jsonl`, creating future dispatch training data.
-- **SimTrigger Agent (`simulation_trigger.py`)**: Subscribes to events and triggers (stubbed) Isaac Sim scenarios to generate Vision-Language-Action datasets.
+Camera URLs come from environment variables, never from code or configs. Copy
+`.env.example` to `.env` (gitignored) and fill it in. See
+[`docs/SECURITY.md`](docs/SECURITY.md).
 
-### Multi-Agent Run Instructions
-```bash
-# Make sure Redis server is running
-redis-server
+## Layout
 
-# In terminal 1: Run the Perception Agent
-python camera_system_with_lstm.py
+| Path | What |
+|---|---|
+| `src/scs/contracts.py` | Shared data types (pydantic). The only coupling point between stages. |
+| `src/scs/bus.py` | Redis Streams helper, plus an in-memory fake for tests |
+| `src/scs/<area>/base.py` | Stage interfaces: ingest, perception, behavior, events, verify |
+| `configs/` | Camera profiles and an example site config |
+| `tests/fixtures/` | Synthetic Track/Pose JSONL, plus two short PoC clips in `video/` |
+| `docs/` | Architecture, roadmap, eval spec, data/license registry, security, ADRs |
+| `tasks/` | One brief per workstream (T00–T12) |
+| `legacy/` | The Sept-2025 PoC, reference only |
 
-# In terminal 2: Run the Dispatcher (Task Logger)
-python dispatcher_agent.py
+## Legacy PoC
 
-# In terminal 3: Run the Simulation Trigger
-python simulation_trigger.py
-```
+The original lab prototype (YOLO + ByteTrack/DeepSORT + pose gestures + LSTM, with
+a Redis robot-dispatch demo) is in [`legacy/`](legacy/README.md). It's kept as a
+reference: `docs/ARCHITECTURE.md` §6 lists what's worth porting. It isn't part of the
+package, nothing imports it, and single-frame gesture alerting is retired.
+`legacy/camera_system_with_lstm.py` can't run until four missing modules are
+committed (ROADMAP H0b). The PoC's two short output clips are kept as test fixtures in
+`tests/fixtures/video/` (see the README there). No model weights are tracked; they're
+downloaded at runtime or built locally into `models/` (gitignored, except
+`models/MANIFEST.yaml`).
 
-The system will now generate a `task_log.jsonl` file, logging all intended robot commands for future training.
+## Authors
 
-Notes:
-- IOU fallback is fine for PoC but not production.
-- For 10 cams, use GPU + hardware decoding (FFmpeg/GStreamer).
+- Ishan Kharat (ishanmk@umd.edu)
+- Abdul Manan (abdul@quantumroboticslab.com)
 
+## License
 
-
-#### Directory Structure
-
-```bash
-10-Camera-Shoplifting-Detection_Quantum/
-│
-├── alerts/
-│   ├── notifier.py
-| 
-├── spills/
-│   ├── spill_detector.py
-│
-├── stream/
-│   ├── multi_cam_stream.py
-│
-├── alerts/
-│   ├── notifier.py
-│
-├── camera_system_with_lstm.py                 # Main runner
-├── requirements.txt
-├── testcamera.py
-├── yolo11n.pt
-└── README.md
+MIT, see [LICENSE](LICENSE). Some R&D dependencies and weights carry other licenses
+(AGPL, non-commercial); see [`docs/DATA.md`](docs/DATA.md) before shipping anything.

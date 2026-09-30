@@ -8,16 +8,20 @@ __pycache__/
 
 # Data, weights and generated media never go in git (see docs/DATA.md)
 data/
-models/
+# models/: only the weights registry is tracked, never the weights
+models/*
+!models/MANIFEST.yaml
 runs/
 outputs/
 *.engine
 *.onnx
+*.pt
 *.pth
 *.mp4
 *.avi
 *.mkv
-!demo_1.mp4
-!demo2.mp4
+# Exception: the two small PoC demo clips, kept as test fixtures
+!tests/fixtures/video/demo_1.mp4
+!tests/fixtures/video/demo2.mp4
 configs/sites/
 task_log.jsonl
