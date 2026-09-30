@@ -21,6 +21,23 @@ from scs.app.stubs import BackgroundDiffDetector, DwellEngine, IouTracker
 from scs.contracts import Alert, Event, FrameRef, Zone
 
 
+def analytics_image(image: Any, width: int) -> np.ndarray:
+    """Any `FrameSource` image (HxWx3 or HxW, any size; a GPU tensor is copied to host)
+    → small HxW uint8 grayscale, by channel mean + integer block averaging (deterministic).
+
+    The M1 ffmpeg source already delivers this; T02's sources deliver full-size color
+    frames (FrameSource contract), and so does T09's fallback decoder.
+    """
+    a = image.cpu().numpy() if hasattr(image, "cpu") else np.asarray(image)
+    if a.ndim == 3:
+        a = a.mean(axis=2)
+    k = a.shape[1] // width
+    if k > 1:
+        h, w = (a.shape[0] // k) * k, (a.shape[1] // k) * k
+        a = a[:h, :w].reshape(h // k, k, w // k, k).mean(axis=(1, 3))
+    return a.astype(np.uint8) if a.dtype != np.uint8 else a
+
+
 class M1Pipeline:
     def __init__(
         self,
@@ -30,6 +47,7 @@ class M1Pipeline:
         learn_background: bool = False,
         warmup_frames: int = 40,
         last_epoch: int | None = None,
+        analytics_width: int = 160,
     ) -> None:
         """`learn_background`: build the detector's background from the first frames of each
         epoch (live cameras, eval clips); otherwise the detector already has a fixed one."""
@@ -39,8 +57,10 @@ class M1Pipeline:
         self.learn_background, self.warmup_frames = learn_background, warmup_frames
         self._warm: list[np.ndarray] = []
         self.last_epoch = last_epoch
+        self.analytics_width = analytics_width
 
     def process(self, ref: FrameRef, image: Any) -> list[Event | Alert]:
+        image = analytics_image(image, self.analytics_width)
         if ref.epoch != self.last_epoch:
             if self.last_epoch is not None:
                 # A new epoch (reconnect, or a file loop) is a discontinuity: tracks and any

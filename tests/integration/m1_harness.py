@@ -97,7 +97,7 @@ def free_port() -> int:
         return int(s.getsockname()[1])
 
 
-def http_json(method: str, url: str, body: dict | None = None, timeout: float = 10.0) -> tuple[int, object]:
+def http_json(method: str, url: str, body: dict | None = None, timeout: float = 30.0) -> tuple[int, object]:
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(
         url,

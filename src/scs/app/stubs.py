@@ -162,10 +162,11 @@ class DwellEngine:
         self.min_dwell_s, self.cooldown_s, self.max_gap_s = min_dwell_s, cooldown_s, max_gap_s
         self.st: dict[str, Any] = {
             "start_ts": None,
+            "start_clock": None,
             "start_key": None,
-            "last_ts": None,
+            "last_clock": None,
             "fired": False,
-            "last_fire_ts": None,
+            "last_fire_clock": None,
         }
         self._pending: list[Event] = []
 
@@ -174,14 +175,19 @@ class DwellEngine:
             return []
         if not point_in_polygon(normalize_point(foot_point(t.bbox), t.frame), self.zone.polygon):
             return []
+        # Durations are measured on the capture clock (`source_ts`, e.g. file PTS) when the
+        # source provides one: in unpaced file replay the decode wall clock (`ts`) runs far
+        # faster than the video, and a 5 s dwell would never elapse. Emitted times stay `ts`
+        # values of seen frames (T09's e2e driver maps those back to media time).
         st, ts = self.st, t.frame.ts
-        if st["last_ts"] is None or ts - st["last_ts"] > self.max_gap_s:
-            st.update(start_ts=ts, start_key=[t.frame.epoch, t.frame.seq], fired=False)
-        st["last_ts"] = ts
-        cooled = st["last_fire_ts"] is None or ts - st["last_fire_ts"] >= self.cooldown_s
-        if st["fired"] or ts - st["start_ts"] < self.min_dwell_s or not cooled:
+        clock = t.frame.source_ts if t.frame.source_ts is not None else ts
+        if st["last_clock"] is None or clock - st["last_clock"] > self.max_gap_s:
+            st.update(start_ts=ts, start_clock=clock, start_key=[t.frame.epoch, t.frame.seq], fired=False)
+        st["last_clock"] = clock
+        cooled = st["last_fire_clock"] is None or clock - st["last_fire_clock"] >= self.cooldown_s
+        if st["fired"] or clock - st["start_clock"] < self.min_dwell_s or not cooled:
             return []
-        st.update(fired=True, last_fire_ts=ts)
+        st.update(fired=True, last_fire_clock=clock)
         epoch, seq = st["start_key"]
         ev = Event(
             event_id=stable_id(t.frame.camera_id, "dwell", self.zone.id, epoch, seq),
@@ -196,6 +202,8 @@ class DwellEngine:
                 "rule": "dwell",
                 "min_dwell_s": self.min_dwell_s,
                 "dwell_start_ts": st["start_ts"],
+                "t_start": st["start_ts"],  # eval.e2e: optional span, as FrameRef.ts values
+                "t_end": ts,
                 "dwell_start": {"epoch": epoch, "seq": seq},
                 "fire": {"epoch": t.frame.epoch, "seq": t.frame.seq},
             },
@@ -228,7 +236,7 @@ class DwellEngine:
 
     def reset_transient(self) -> None:
         """After a gap in a live stream the dwell episode is broken; the cooldown survives."""
-        self.st.update(start_ts=None, start_key=None, last_ts=None, fired=False)
+        self.st.update(start_ts=None, start_clock=None, start_key=None, last_clock=None, fired=False)
 
     def state(self) -> dict[str, Any]:
         return dict(self.st)
