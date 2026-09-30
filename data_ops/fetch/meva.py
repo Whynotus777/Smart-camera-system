@@ -118,9 +118,41 @@ def select(objects: list[dict], ann: dict[str, Counter], max_bytes: int) -> list
     return out
 
 
-def _etag_checksum(etag: str) -> str | None:
+def _etag_checksum(etag: str) -> str:
+    """Single-part ETag = MD5 of the object; multipart ETags are checked by s3_etag_matches."""
     e = etag.strip('"')
-    return None if "-" in e else f"md5:{e}"  # multipart ETags aren't MD5s
+    return f"s3etag:{e}" if "-" in e else f"md5:{e}"
+
+
+def reverify(jobs: int = 8, log=print) -> dict[str, int]:
+    """Re-check files recorded as size-only against their (multipart) S3 ETags."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from data_ops.fetch.common import dataset_lock, s3_etag_matches
+
+    root = dataset_dir("meva")
+    man_path = root / "MANIFEST.json"
+    man = Manifest.load_or_new(man_path, **META)
+    etags = {o["Key"][len(PREFIX):]: o["ETag"] for o in list_bucket()}
+    todo = [r for r, e in man.files.items()
+            if not str(e.get("verified", "")).startswith("size+") and r in etags]
+    log(f"meva: re-verifying {len(todo)} files against S3 ETags")
+    res = {"ok": 0, "mismatch": 0, "uncheckable": 0}
+    with dataset_lock(root), ThreadPoolExecutor(jobs) as ex:
+        checks = ex.map(lambda r: s3_etag_matches(root / "raw" / r, etags[r]), todo)
+        for rel, ok in zip(todo, checks, strict=True):
+            e = man.files[rel]
+            e["source_checksum"] = _etag_checksum(etags[rel])
+            if ok:
+                e["verified"], key = "size+s3etag(multipart md5)", "ok"
+            elif ok is False:
+                e["verified"], key = "ETAG MISMATCH", "mismatch"
+            else:
+                key = "uncheckable"
+            res[key] += 1
+        man.save(man_path)
+    log(f"meva: reverify {res}")
+    return res
 
 
 def fetch(max_gb: float, jobs: int = 8, dry_run: bool = False, log=print) -> int:

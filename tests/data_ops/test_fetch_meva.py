@@ -11,7 +11,7 @@ def test_meva_camera_parsing():
 
 def test_meva_etag():
     assert meva._etag_checksum('"5d41402abc4b2a76b9719d911017c592"') == "md5:5d41402abc4b2a76b9719d911017c592"
-    assert meva._etag_checksum('"abc-12"') is None  # multipart ETag isn't an MD5
+    assert meva._etag_checksum('"abc-12"') == "s3etag:abc-12"  # multipart: checked part-wise
 
 
 def _obj(clip, size):

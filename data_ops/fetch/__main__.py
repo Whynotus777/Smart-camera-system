@@ -16,6 +16,7 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--max-gb", type=float, default=150.0)
     m.add_argument("--jobs", type=int, default=8)
     m.add_argument("--dry-run", action="store_true", help="select + index only, no video download")
+    m.add_argument("--reverify", action="store_true", help="re-check size-only files against S3 ETags")
     s = sub.add_parser("smartspaces", help="NVIDIA PhysicalAI-SmartSpaces retail scenes 071-080 (CC-BY-4.0)")
     s.add_argument("--jobs", type=int, default=4)
     s.add_argument("--dry-run", action="store_true")
@@ -32,6 +33,8 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     if a.dataset == "meva":
         from data_ops.fetch import meva
+        if a.reverify:
+            return 1 if meva.reverify(jobs=a.jobs)["mismatch"] else 0
         return meva.fetch(a.max_gb, jobs=a.jobs, dry_run=a.dry_run)
     if a.dataset == "smartspaces":
         from data_ops.fetch import smartspaces
