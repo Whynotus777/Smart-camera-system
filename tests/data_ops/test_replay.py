@@ -24,12 +24,25 @@ def fake(monkeypatch, tmp_path):
     monkeypatch.setattr(farm.Publisher, "start", lambda self: setattr(self, "proc", FakeProc()))
     monkeypatch.setattr(farm.Publisher, "stop", lambda self: setattr(self, "proc", None))
     monkeypatch.setattr(farm.os, "killpg", lambda pid, sig: calls.append(("killpg", sig)))
-    monkeypatch.setattr(farm, "server_kill", lambda: calls.append(("server", "kill")))
-    monkeypatch.setattr(farm, "server_start", lambda: calls.append(("server", "start")))
-    monkeypatch.setattr(farm, "wait_ready", lambda timeout_s=0: True)
+    docker = {"running": False}
+
+    class FakeDockerOp:
+        def __init__(self, args):
+            self.args = ["docker", *args]
+
+        def poll(self):
+            return None if docker["running"] else 0
+
+    def fake_docker(*args):
+        calls.append(("server", args[0]))
+        return FakeDockerOp(args)
+
+    monkeypatch.setattr(farm, "docker_async", fake_docker)
+    monkeypatch.setattr(farm, "api_ready", lambda timeout_s=0.5: not docker["running"])
     pubs = [farm.Publisher(cam=f"cam0{i}", codec=c, files={"normal": Path("n"), "spike": Path("s")})
             for c in ("h264", "h265") for i in (1, 2)]
     fm = farm.Farm(pubs=pubs, run_dir=tmp_path, t0=0.0, log=lambda *_: None)
+    fm.fake_docker = docker  # tests flip ["running"] to simulate a stalled daemon
     (tmp_path / "requests").mkdir()
     for p in pubs:
         p.start()
@@ -122,6 +135,26 @@ def test_server_fault_and_on_demand_request(fake, monkeypatch):
     assert all(p.alive() for p in fm.pubs)
 
 
+def test_stalled_docker_never_blocks_the_supervisor(fake):
+    fm, calls = fake
+    docker = fm.fake_docker
+    logs = []
+    fm.log = logs.append
+    docker["running"] = True  # `docker kill` hangs, as seen under disk saturation
+    fm.apply(farm.Fault(at=0, kind="server", seconds=5), now=0.0)
+    for t in (1.0, 10.0, 40.0):
+        fm.tick(t)  # returns immediately every time
+    assert fm.server_state == "killing" and not any(p.alive() for p in fm.pubs)
+    assert any("still running after 30 s" in m for m in logs)
+    state = __import__("json").loads((fm.run_dir / "state.json").read_text())
+    assert state["server_state"] == "killing" and state["docker_op_running_s"] >= 30
+    docker["running"] = False  # daemon recovers
+    fm.tick(41.0)  # kill done -> down; fault time passed -> start issued
+    fm.tick(42.0)  # start done + API up -> up
+    fm.tick(42.2)
+    assert fm.server_state == "up" and all(p.alive() for p in fm.pubs)
+
+
 # ---------------------------------------------------------------- integration (docker + ffmpeg)
 
 
@@ -159,6 +192,10 @@ def _frames(u, seconds=3.0):
 @pytest.mark.skipif(not (shutil.which("docker") and shutil.which("ffmpeg")), reason="needs docker + ffmpeg")
 def test_farm_end_to_end(monkeypatch, tmp_path):
     monkeypatch.setattr(farm, "farm_dir", lambda: tmp_path)
+    # Isolated instance: never touch the live farm (scs-replay-mediamtx on 8554/9997).
+    monkeypatch.setattr(farm, "CONTAINER", "scs-replay-pytest")
+    monkeypatch.setattr(farm, "RTSP_PORT", 18554)
+    monkeypatch.setattr(farm, "API_PORT", 19997)
     clips = tmp_path / "clips"
     clips.mkdir()
     for cam in ("cam01", "cam02"):

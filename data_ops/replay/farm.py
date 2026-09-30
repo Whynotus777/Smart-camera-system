@@ -34,9 +34,10 @@ from data_ops.manifest import Manifest, file_hashes
 from data_ops.paths import data_root, dataset_dir
 
 IMAGE = "bluenviron/mediamtx:1.21.1"
-CONTAINER = "scs-replay-mediamtx"
-RTSP_PORT = 8554
-API_PORT = 9997
+# Overridable so tests (and a second farm) never collide with the live one on 8554/9997.
+CONTAINER = os.environ.get("SCS_REPLAY_CONTAINER", "scs-replay-mediamtx")
+RTSP_PORT = int(os.environ.get("SCS_REPLAY_RTSP_PORT", "8554"))
+API_PORT = int(os.environ.get("SCS_REPLAY_API_PORT", "9997"))
 FAULTS = ("drop", "stall", "spike", "server")
 VARIANTS = {  # name -> ffmpeg video args; fps is MEVA's 30, GOP 2 s like Reolink's default
     "h264": ["-c:v", "h264_nvenc", "-preset", "p4", "-b:v", "3M", "-maxrate", "4M", "-bufsize", "6M"],
@@ -161,6 +162,22 @@ def wait_ready(timeout_s: float = 30.0) -> bool:
     return False
 
 
+def docker_async(*args: str) -> subprocess.Popen:
+    """Run a docker CLI command without blocking the supervisor (Docker can stall under disk load)."""
+    return subprocess.Popen([tool("docker"), *args], stdout=subprocess.DEVNULL,  # noqa: S603
+                            stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def api_ready(timeout_s: float = 0.5) -> bool:
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{API_PORT}/v3/paths/list", timeout=timeout_s):  # noqa: S310
+            return True
+    except OSError:
+        return False
+
+
 def server_kill() -> None:
     subprocess.run([tool("docker"), "kill", CONTAINER], capture_output=True)  # noqa: S603
 
@@ -249,15 +266,26 @@ class Farm:
     run_dir: Path = field(default_factory=lambda: farm_dir() / "run")
     t0: float = field(default_factory=time.monotonic)
     server_down_until: float = 0.0
+    # Server-fault state machine: up -> killing -> down -> starting -> up. Docker commands run
+    # async (docker_async) because `docker kill/start` can block for minutes when the disk is
+    # saturated; the supervisor must keep ticking and report it instead of freezing.
+    server_state: str = "up"
+    docker_op: subprocess.Popen | None = None
+    docker_op_started: float = 0.0
+    docker_slow_logged: bool = False
+    next_api_check: float = 0.0
     log: object = print
 
     def apply(self, f: Fault, now: float) -> None:
         self.log(f"[fault] {f.kind} {f.target} {f.seconds:g}s")
         if f.kind == "server":
-            server_kill()
+            if self.server_state != "up":
+                self.log("[fault] server fault ignored: server not up")
+                return
             for p in self.pubs:  # don't leave publishers hung on a dead connection; restart fresh later
                 p.stop()
-            self.server_down_until = now + f.seconds
+            self._docker(now, "kill", CONTAINER)
+            self.server_state, self.server_down_until = "killing", now + f.seconds
             return
         for p in (p for p in self.pubs if f.matches(p)):
             if f.kind == "drop":
@@ -279,12 +307,7 @@ class Farm:
             req.unlink()
             fault = Fault(at=0, kind=d["fault"], seconds=float(d["seconds"]), target=d.get("target", "*"))
             self.apply(fault, now)
-        if self.server_down_until and now >= self.server_down_until:
-            server_start()
-            wait_ready(10.0)
-            self.server_down_until = 0.0
-            for p in self.pubs:  # restart promptly once the server is back, not on crash backoff
-                p.next_start, p.backoff = 0.0, 0.0
+        self._server_tick(now)
         for p in self.pubs:
             if p.resume_at and now >= p.resume_at and p.proc:
                 os.killpg(p.proc.pid, signal.SIGCONT)
@@ -300,14 +323,38 @@ class Farm:
                 p.next_start = now + p.backoff
             elif p.alive() and p.backoff and now - p.started_at > 60:
                 p.backoff = 0.0
-            if p.proc is None and now >= max(p.down_until, p.next_start) and not self.server_down_until:
+            if p.proc is None and now >= max(p.down_until, p.next_start) and self.server_state == "up":
                 p.start()
                 p.started_at = now
                 p.restarts += 1
         self.write_state(now)
 
+    def _docker(self, now: float, *args: str) -> None:
+        self.docker_op, self.docker_op_started, self.docker_slow_logged = docker_async(*args), now, False
+
+    def _server_tick(self, now: float) -> None:
+        op_done = self.docker_op is None or self.docker_op.poll() is not None
+        if not op_done and now - self.docker_op_started > 30 and not self.docker_slow_logged:
+            op = self.docker_op.args[1]
+            self.log(f"[server] docker {op} still running after 30 s (disk/daemon stalled?)")
+            self.docker_slow_logged = True
+        if self.server_state == "killing" and op_done:
+            self.server_state = "down"
+        if self.server_state == "down" and now >= self.server_down_until:
+            self._docker(now, "start", CONTAINER)
+            self.server_state = "starting"
+        elif self.server_state == "starting" and op_done and now >= self.next_api_check:
+            self.next_api_check = now + 1.0
+            if api_ready():
+                self.server_state, self.server_down_until = "up", 0.0
+                for p in self.pubs:  # restart promptly once the server is back, not on crash backoff
+                    p.next_start, p.backoff = 0.0, 0.0
+
     def write_state(self, now: float) -> None:
-        state = {"uptime_s": round(now - self.t0, 1), "server_down": bool(self.server_down_until),
+        busy = self.docker_op is not None and self.docker_op.poll() is None
+        running = round(now - self.docker_op_started, 1) if busy else 0
+        state = {"uptime_s": round(now - self.t0, 1), "server_state": self.server_state,
+                 "server_down": self.server_state != "up", "docker_op_running_s": running,
                  "streams": {p.path: {"url": url(p.codec, p.cam), "alive": p.alive(), "variant": p.variant,
                                       "stalled": bool(p.resume_at), "dropped": now < p.down_until,
                                       "restarts": p.restarts, "crashes": p.crashes,
