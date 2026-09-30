@@ -159,7 +159,7 @@ def parse_geom(path: Path) -> np.ndarray:
 
 def load_clip_table(path: Path) -> dict[str, tuple[str, str]]:
     """clip -> (reference time slot, camera set)."""
-    out = {}
+    out: dict[str, tuple[str, str]] = {}
     if not path.exists():
         return out
     for line in path.read_text().splitlines():

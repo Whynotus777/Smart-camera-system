@@ -1,0 +1,7 @@
+# eval/ runtime (licenses recorded per AGENTS.md rule 5)
+pyarrow>=15          # Apache-2.0 — canonical tracks parquet
+# optional, only for cross-check tests (skipped when absent)
+scipy>=1.11          # BSD-3-Clause — linear_sum_assignment / gaussian_filter1d reference
+scikit-learn>=1.4    # BSD-3-Clause — AUC/AP reference
+motmetrics>=1.4      # MIT — IDF1 / ID switch reference
+# e2e fallback decoder uses the existing `perception` extra: av (BSD-3), opencv-python-headless (Apache-2.0)

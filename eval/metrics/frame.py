@@ -20,7 +20,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from eval.metrics.stats import DEFAULT_B, DEFAULT_SEED, LOW_N, MetricValue, bootstrap_stat
+from eval.metrics.stats import DEFAULT_B, DEFAULT_SEED, LOW_N, MetricValue, bootstrap_indices, percentile_ci
 
 
 def _rankdata_avg(x: np.ndarray) -> np.ndarray:
@@ -82,18 +82,62 @@ def frame_auc(
         "clips": len(clips),
         "positive_clips": sum(1 for c in clips if np.any(c[0])),
     }
+    s_all = np.concatenate([np.asarray(c[1], dtype=float) for c in clips])
+    clip_of = np.repeat(np.arange(len(clips)), [len(c[0]) for c in clips])
+    wb = _WeightedBlocks(y_all, s_all, clip_of)
+    counts = bootstrap_counts(len(clips), b, seed)
     out: dict[str, MetricValue] = {}
-    for name, fn in (("auc_roc", auc_roc), ("auc_pr", average_precision)):
-
-        def stat(cs: list[tuple[np.ndarray, np.ndarray]], fn=fn) -> float:
-            return fn(np.concatenate([c[0] for c in cs]), np.concatenate([c[1] for c in cs]))
-
-        v, ci = bootstrap_stat(list(clips), stat, b, seed)
+    for name, fn, wfn in (("auc_roc", auc_roc, wb.auc), ("auc_pr", average_precision, wb.ap)):
+        v = fn(y_all, s_all)
         if math.isnan(v):
             out[name] = MetricValue.unavailable("needs both positive and negative frames", **n)
-        else:
-            out[name] = MetricValue(v, ci, n, low_n=n["positive_clips"] < LOW_N)
+            continue
+        ci = percentile_ci(np.array([wfn(c) for c in counts]))
+        out[name] = MetricValue(v, ci, n, low_n=n["positive_clips"] < LOW_N)
     return out
+
+
+def bootstrap_counts(n_units: int, b: int = DEFAULT_B, seed: int = DEFAULT_SEED) -> np.ndarray:
+    """(b, n_units) multiplicity of each unit in each replicate (same draws as bootstrap_indices)."""
+    idx = bootstrap_indices(n_units, b, seed)
+    return np.stack([np.bincount(row, minlength=n_units) for row in idx]) if n_units else np.zeros((b, 0))
+
+
+class _WeightedBlocks:
+    """Exact AUC/AP of a clip-resampled replicate without re-sorting: a clip drawn k times is k
+    identical copies, i.e. weight k on each of its frames. Frames are sorted once into tie blocks."""
+
+    def __init__(self, y: np.ndarray, s: np.ndarray, clip_of: np.ndarray) -> None:
+        order = np.argsort(s, kind="mergesort")
+        ss = s[order]
+        self.block = np.cumsum(np.r_[0, ss[1:] != ss[:-1]])  # ascending tie-block id per sorted frame
+        self.nb = int(self.block[-1]) + 1 if len(ss) else 0
+        self.y = y[order].astype(float)
+        self.clip = clip_of[order]
+
+    def _sums(self, counts: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        w = counts[self.clip].astype(float)
+        wp = np.bincount(self.block, w * self.y, self.nb)
+        wn = np.bincount(self.block, w * (1 - self.y), self.nb)
+        return wp, wn
+
+    def auc(self, counts: np.ndarray) -> float:
+        wp, wn = self._sums(counts)
+        tp, tn = wp.sum(), wn.sum()
+        if tp == 0 or tn == 0:
+            return math.nan
+        neg_below = np.cumsum(wn) - wn
+        return float(np.sum(wp * (neg_below + 0.5 * wn)) / (tp * tn))
+
+    def ap(self, counts: np.ndarray) -> float:
+        wp, wn = self._sums(counts)
+        if wp.sum() == 0:
+            return math.nan
+        tp, fp = np.cumsum(wp[::-1]), np.cumsum(wn[::-1])  # descending thresholds
+        keep = (tp + fp) > 0
+        prec = np.where(keep, tp / np.where(keep, tp + fp, 1), 0.0)
+        rec = tp / wp.sum()
+        return float(np.sum(np.diff(np.r_[0.0, rec]) * prec))
 
 
 def gaussian_smooth(x: np.ndarray, sigma: float) -> np.ndarray:

@@ -59,9 +59,19 @@
    "scene_074.camera_0698",
    "scene_075.camera_0699",
    "scene_075.camera_0700",
+   "scene_075.camera_0701",
    "scene_075.camera_0702",
    "scene_075.camera_0703",
-   "scene_075.camera_0704"
+   "scene_075.camera_0704",
+   "scene_075.camera_0705",
+   "scene_075.camera_0706",
+   "scene_075.camera_0707",
+   "scene_075.camera_0708",
+   "scene_075.camera_0709",
+   "scene_075.camera_0710",
+   "scene_075.camera_0711",
+   "scene_075.camera_0712",
+   "scene_075.camera_0714"
   ],
   "val": [
    "scene_072.camera_0651",
@@ -103,7 +113,7 @@
  "excluded": {},
  "group_of": {},
  "counts": {
-  "train": 37,
+  "train": 47,
   "val": 16,
   "test": 16,
   "excluded": 0

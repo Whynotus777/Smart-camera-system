@@ -90,6 +90,7 @@ def _held(m: ClipMeta, rule: dict[str, list[str]]) -> bool:
         (m.camera_id is not None and m.camera_id in rule.get("cameras", []))
         or (m.site_id is not None and m.site_id in rule.get("sites", []))
         or (m.view_group is not None and m.view_group in rule.get("view_groups", []))
+        or m.clip_id in rule.get("clips", [])
     )
 
 
@@ -121,18 +122,20 @@ def generate(
     excluded: dict[str, str] = {}
     order = [s for s in ("test", "val", "train") if s in spec.holdout]
     for members in units.values():
-        target = next((s for s in order if any(_held(m, spec.holdout[s]) for m in members)), None)
-        if target is None:
+        held_in: str | None = next((s for s in order if any(_held(m, spec.holdout[s]) for m in members)),
+                                   None)
+        if held_in is None:
             key = min(m.gid for m in members)
-            x, acc, target = _hash01(f"{spec.seed}:{dataset}:{key}"), 0.0, "train"
+            x, acc, dest = _hash01(f"{spec.seed}:{dataset}:{key}"), 0.0, "train"
             for s in SPLIT_NAMES:
                 acc += spec.fractions.get(s, 0.0)
                 if x < acc:
-                    target = s
+                    dest = s
                     break
             for m in members:
-                assign[m.clip_id] = target
+                assign[m.clip_id] = dest
             continue
+        target: str = held_in
         anchor = next(m for m in members if _held(m, spec.holdout[target]))
         held_groups = {m.gid for m in members if _held(m, spec.holdout[target])}
         for m in members:
@@ -175,10 +178,12 @@ def validate(d: dict[str, Any], metas: Iterable[ClipMeta] | None = None) -> None
     if metas is not None:
         actor_split: dict[str, str] = {}
         for m in metas:
-            s = seen.get(m.clip_id)
-            for a in (m.actor_ids or ()) if s else ():
-                if actor_split.setdefault(a, s) != s:
-                    raise ValueError(f"actor {a} spans splits {actor_split[a]} and {s}")
+            ms = seen.get(m.clip_id)
+            if ms is None:
+                continue
+            for a in m.actor_ids or ():
+                if actor_split.setdefault(a, ms) != ms:
+                    raise ValueError(f"actor {a} spans splits {actor_split[a]} and {ms}")
 
 
 @dataclass
